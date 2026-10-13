@@ -107,7 +107,7 @@ describe("pi-subagent codex backend", () => {
     })).toBe(JSON.stringify({ ok: true, text: "keep-json" }));
   });
 
-  it("runs a codex-backed subagent through the Agent tool", async () => {
+  it("runs a codex-backed subagent through the external_delegate tool", async () => {
     const subagentsDir = join(agentDir, "pi-flow-external", "overrides");
     const binDir = join(tempDir, "bin");
     const argsPath = join(tempDir, "codex-args.json");
@@ -140,7 +140,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1000
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", {
+      fauxAssistantMessage([fauxToolCall("external_delegate", {
         description: "Codex review",
         role: "reviewer",
         harness: "codex",
@@ -191,7 +191,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     process.env.PATH = `${binDir}:${originalPathEnv ?? ""}`;
 
     const { session, model, modelRegistry } = await createSession({ maxConcurrentSubagents: 1 });
-    const tool = session.getToolDefinition("Agent") as any;
+    const tool = session.getToolDefinition("external_delegate") as any;
     const context = makeExecutionContext({ hasUI: false, model, modelRegistry, persistedSession: true });
     const first = tool.execute("first", { description: "First", prompt: "hold", role: "worker", harness: "codex" }, undefined, undefined, context);
     // Same real-spawned-process readiness pattern (poll for a side-effect file
@@ -241,7 +241,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     process.env.PATH = emptyBin;
 
     const { session, model, modelRegistry } = await createSession();
-    const tool = session.getToolDefinition("Agent") as any;
+    const tool = session.getToolDefinition("external_delegate") as any;
     const result = await tool.execute(
       "missing-codex",
       { description: "Missing Codex", prompt: "work", role: "worker", harness: "codex" },
@@ -449,7 +449,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1000
     process.env.PATH = `${binDir}:${originalPathEnv ?? ""}`;
 
     const { session, model, modelRegistry } = await createSession();
-    const tool = session.getToolDefinition("Agent") as any;
+    const tool = session.getToolDefinition("external_delegate") as any;
     const statuses: Array<{ key: string; text: string | undefined }> = [];
     const result = await tool.execute(
       "codex-unknown-cost",

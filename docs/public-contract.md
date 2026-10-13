@@ -1,9 +1,9 @@
-# Public contract v1: Agent, workflow and external_runs
+# Public contract v1: external_delegate, workflow and external_runs
 
-`Agent`, `workflow` and `external_runs` declare `outputSchema` and return matching `structuredContent`. Human `content` and renderer `details` stay separate. Native Pi codemode receives the structured result, including failures. **Check `ok`**, not just whether the call threw.
+`external_delegate`, `workflow` and `external_runs` declare `outputSchema` and return matching `structuredContent`. Human `content` and renderer `details` stay separate. Native Pi codemode receives the structured result, including failures. **Check `ok`**, not just whether the call threw.
 
 ```js
-const receipt = await tools.Agent({ role: "worker", description: "Check build", prompt: "Run the build and report." });
+const receipt = await tools.external_delegate({ role: "worker", description: "Check build", prompt: "Run the build and report." });
 if (!receipt.ok) return receipt.error;
 return receipt.data.run;
 ```
@@ -22,7 +22,7 @@ Every result carries:
 
 | Tool | `action` | Success `data` | Failure `data` |
 |---|---|---|---|
-| `Agent` | `delegate` | `{run}` | `{run}`, or `{run: null}` before registration |
+| `external_delegate` | `delegate` | `{run}` | `{run}`, or `{run: null}` before registration |
 | `workflow` | `run` | `{run}` | `{run}`, or `{run: null}` before registration |
 | `external_runs` | the requested action | the action's payload (below) | `null` |
 
@@ -107,4 +107,4 @@ A host redaction hook that replaces content drops structured content unless it e
 
 ## Discovery
 
-Pi 0.99.2 generates discriminated return types from these schemas through native `describeTool`. The `Agent` input declaration currently loses its input properties, because Pi renders the root `anyOf` constraints before the properties; input validation itself remains intact. This is a known input-discovery limitation, not a runtime validation bypass.
+Pi 0.99.2 generates discriminated return types from these schemas through native `describeTool`. The `external_delegate` input declaration currently loses its input properties, because Pi renders the root `anyOf` constraints before the properties; input validation itself remains intact. This is a known input-discovery limitation, not a runtime validation bypass.

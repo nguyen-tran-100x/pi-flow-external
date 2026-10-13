@@ -394,7 +394,7 @@ export function createWorkflowTool(
               }),
             });
             // Seed an initial queued observation immediately, mirroring the
-            // direct Agent tool's own top-of-executeRun registry.update: a
+            // direct external_delegate tool's own top-of-executeRun registry.update: a
             // registered entry otherwise carries no observation at all until
             // the backend's first progress event fires deep inside
             // spawnSubagent (after limiter acquisition), so a workflow child
@@ -512,7 +512,7 @@ export function createWorkflowTool(
               // Transition this child's OWN registry entry (not just the
               // workflow's aggregate snapshot above) from queued to running
               // immediately after the concurrency limiter granted its slot —
-              // mirroring the direct Agent tool's own top-of-executeRun
+              // mirroring the direct external_delegate tool's own top-of-executeRun
               // registry.update — and BEFORE any backend progress arrives.
               // Without this, the child's entry only left "queued" once
               // spawnSubagent's own onProgress first fired deep inside

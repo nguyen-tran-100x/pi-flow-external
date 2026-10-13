@@ -50,11 +50,12 @@ describe("pi-subagent agent contract", () => {
     originalPathEnv = state.originalPathEnv;
     registrations = state.registrations;
   });
-  it("registers the Claude-style Agent tool contract", async () => {
+  it("registers the external_delegate tool contract without an Agent alias", async () => {
     const { session } = await createSession();
 
-    const tool = session.getAllTools().find((candidate) => candidate.name === "Agent");
+    const tool = session.getAllTools().find((candidate) => candidate.name === "external_delegate");
     expect(tool).toBeDefined();
+    expect(session.getAllTools().map((candidate) => candidate.name)).not.toContain("Agent");
     const properties = (tool?.parameters as { properties: Record<string, unknown> } | undefined)?.properties;
     expect(properties).toHaveProperty("description");
     expect(properties).toHaveProperty("prompt");
@@ -82,7 +83,7 @@ describe("pi-subagent agent contract", () => {
   it("requires description and prompt while exposing role-first and legacy selectors", async () => {
     const { session } = await createSession();
 
-    const tool = session.getAllTools().find((candidate) => candidate.name === "Agent");
+    const tool = session.getAllTools().find((candidate) => candidate.name === "external_delegate");
     const schema = tool?.parameters as { required?: string[]; properties: Record<string, unknown>; anyOf?: unknown[] } | undefined;
     expect(schema?.required).toContain("description");
     expect(schema?.required).toContain("prompt");
@@ -123,7 +124,7 @@ describe("pi-subagent agent contract", () => {
     disposeSession(session);
   });
 
-  it("launches Agent and workflow work in the background without retaining tool callbacks", async () => {
+  it("launches external_delegate and workflow work in the background without retaining tool callbacks", async () => {
     const subagentsDir = join(agentDir, "pi-flow-external", "overrides");
     const binDir = join(tempDir, "bin-background");
     const startedPath = join(tempDir, "background-started");
@@ -150,7 +151,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     const { session, model, modelRegistry } = await createSession();
     const context = makeExecutionContext({ hasUI: false, model, modelRegistry, persistedSession: true }) as any;
     context.sessionManager.getBranch = () => [];
-    const agent = session.getToolDefinition("Agent") as any;
+    const agent = session.getToolDefinition("external_delegate") as any;
     const directUpdate = vi.fn();
     const direct = await agent.execute(
       "background-agent",
@@ -230,7 +231,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     process.env.PATH = `${binDir}:${originalPathEnv ?? ""}`;
 
     const { session, model, modelRegistry } = await createSession({ thinkingLevel: "high" });
-    const agent = session.getToolDefinition("Agent") as any;
+    const agent = session.getToolDefinition("external_delegate") as any;
     const context = makeExecutionContext({ hasUI: false, model, modelRegistry });
     const results: any[] = [];
     for (const role of ["explorer", "reviewer", "worker"]) {
@@ -273,7 +274,7 @@ setInterval(() => {}, 1000);
     const { session, model, modelRegistry } = await createSession({ subagentTimeoutMs: 5_000 });
     const context = makeExecutionContext({ hasUI: false, model, modelRegistry, persistedSession: true }) as any;
     context.sessionManager.getBranch = () => [];
-    const agent = session.getToolDefinition("Agent") as any;
+    const agent = session.getToolDefinition("external_delegate") as any;
     const runs = session.getToolDefinition("external_runs") as any;
     const launched = await agent.execute(
       "live-timing",
@@ -323,7 +324,7 @@ setInterval(() => {}, 1000);
     const { session, model, modelRegistry } = await createSession({ subagentTimeoutMs: 5_000 });
     const context = makeExecutionContext({ hasUI: false, model, modelRegistry, persistedSession: true }) as any;
     context.sessionManager.getBranch = () => [];
-    const agent = session.getToolDefinition("Agent") as any;
+    const agent = session.getToolDefinition("external_delegate") as any;
     const runs = session.getToolDefinition("external_runs") as any;
     const launched = await agent.execute(
       "cancel-reason",
@@ -413,7 +414,7 @@ setInterval(() => {}, 1000);
     expect(getCurrentSystemPrompt(rootContext?.messages ?? [])).toContain("# External delegation");
     expect(getCurrentSystemPrompt(rootContext?.messages ?? [])).toContain("Harnesses: agy (default), claude, codex, grok, muse, opencode.");
     expect(getCurrentSystemPrompt(rootContext?.messages ?? [])).toContain("agy alone may make one disclosed infrastructure retry");
-    expect(getToolNames(rootContext)).toContain("Agent");
+    expect(getToolNames(rootContext)).toContain("external_delegate");
     expect(getToolNames(rootContext)).toContain("external_help");
     expect(getToolNames(rootContext)).toContain("external_runs");
     expect(getToolNames(rootContext)).toContain("workflow");
@@ -445,7 +446,7 @@ setInterval(() => {}, 1000);
     ]);
     await trusted.session.prompt("Just say noted.");
     expect(trustedPrompt).toContain("Harnesses: agy, claude, codex (default), grok, muse, opencode.");
-    const trustedAgent = trusted.session.getToolDefinition("Agent") as any;
+    const trustedAgent = trusted.session.getToolDefinition("external_delegate") as any;
     const trustedResult = await trustedAgent.execute(
       "project-default",
       { description: "Review security", prompt: "Review.", role: "security-reviewer" },
@@ -458,7 +459,7 @@ setInterval(() => {}, 1000);
 
     // Untrusted session: the same call resolves against the global agy default.
     const untrusted = await createSession();
-    const untrustedAgent = untrusted.session.getToolDefinition("Agent") as any;
+    const untrustedAgent = untrusted.session.getToolDefinition("external_delegate") as any;
     const untrustedResult = await untrustedAgent.execute(
       "global-default",
       { description: "Review security", prompt: "Review.", role: "security-reviewer" },
@@ -528,7 +529,7 @@ setInterval(() => {}, 1000);
   });
 
 
-  it("registers the Agent tool when loaded via additionalExtensionPaths", async () => {
+  it("registers the external_delegate tool when loaded via additionalExtensionPaths", async () => {
     const registration = fauxProvider({
       models: [{ id: "faux-thinker", name: "Faux Thinker", reasoning: true }],
     });
@@ -564,7 +565,7 @@ setInterval(() => {}, 1000);
     trackSession(session);
     await session.bindExtensions({});
 
-    const tool = session.getAllTools().find((candidate) => candidate.name === "Agent");
+    const tool = session.getAllTools().find((candidate) => candidate.name === "external_delegate");
     expect(tool).toBeDefined();
     expect((tool?.parameters as { properties: Record<string, unknown> }).properties).toHaveProperty(
       "subagent_type",

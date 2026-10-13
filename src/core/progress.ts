@@ -1,4 +1,5 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import { EXTERNAL_DELEGATE_TOOL } from "../tool-names.ts";
 import type {
   SubagentBackend,
   SubagentAssistantOutput,
@@ -138,7 +139,7 @@ function getToolArgPreview(args: unknown): string {
 
 export function updateProgressFromEvent(progress: SubagentProgressNode, event: AgentSessionEvent): void {
   if (event.type === "tool_execution_start") {
-    if (event.toolName === "Agent") {
+    if (event.toolName === EXTERNAL_DELEGATE_TOOL) {
       return;
     }
     const preview = getToolArgPreview(event.args);

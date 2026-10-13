@@ -129,7 +129,7 @@ describe("pi-subagent agy backend", () => {
     });
   });
 
-  it("runs an agy-backed subagent through the Agent tool", async () => {
+  it("runs an agy-backed subagent through the external_delegate tool", async () => {
     const subagentsDir = join(agentDir, "pi-flow-external", "overrides");
     const binDir = join(tempDir, "bin-agy");
     const argsPath = join(tempDir, "agy-args.json");
@@ -155,7 +155,7 @@ console.log(JSON.stringify({ event: 'result', result: { conversation_id: 'agy-te
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", {
+      fauxAssistantMessage([fauxToolCall("external_delegate", {
         description: "Agy review",
         role: "reviewer",
         prompt: "Review the latest diff.",
@@ -369,7 +369,7 @@ if (count === 1) {
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", {
+      fauxAssistantMessage([fauxToolCall("external_delegate", {
         description: "Agy review",
         subagent_type: "agy-reviewer",
         prompt: "Review the latest diff.",
@@ -414,7 +414,7 @@ console.log(JSON.stringify({ event: 'result', result: { conversation_id: 'agy-no
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", {
+      fauxAssistantMessage([fauxToolCall("external_delegate", {
         description: "Agy review",
         subagent_type: "agy-reviewer",
         prompt: "Review the latest diff.",
@@ -454,7 +454,7 @@ console.log(JSON.stringify({ event: 'result', result: { conversation_id: 'agy-re
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", {
+      fauxAssistantMessage([fauxToolCall("external_delegate", {
         description: "Agy review",
         subagent_type: "agy-reviewer",
         prompt: "Review the latest diff.",

@@ -182,22 +182,22 @@ describe("external_help usage playbook", () => {
     });
   });
 
-  it("validates playbook selectors against the Agent, external_runs, and workflow schemas", () => {
-    const agentTool = { name: "Agent", parameters: agentToolParameters } as any;
+  it("validates playbook selectors against the external_delegate, external_runs, and workflow schemas", () => {
+    const agentTool = { name: "external_delegate", parameters: agentToolParameters } as any;
     for (const example of ordinaryAgents) {
-      const validated = validateToolArguments(agentTool, toolCall("Agent", { ...example }));
+      const validated = validateToolArguments(agentTool, toolCall("external_delegate", { ...example }));
       expect(validated).toMatchObject({ role: example.role, harness: example.harness });
       expect(validated).not.toHaveProperty("permission");
     }
-    expect(validateToolArguments(agentTool, toolCall("Agent", { ...USAGE_RESTRICTED_AGENT }))).toMatchObject({
+    expect(validateToolArguments(agentTool, toolCall("external_delegate", { ...USAGE_RESTRICTED_AGENT }))).toMatchObject({
       role: USAGE_RESTRICTED_AGENT.role,
       harness: USAGE_RESTRICTED_AGENT.harness,
       permission: "readonly",
     });
-    expect(() => validateToolArguments(agentTool, toolCall("Agent", {
+    expect(() => validateToolArguments(agentTool, toolCall("external_delegate", {
       ...USAGE_ONE_AGENT,
       subagent_type: "claude-explorer",
-    }))).toThrow(/Validation failed for tool "Agent"/);
+    }))).toThrow(/Validation failed for tool "external_delegate"/);
 
     const runsTool = createExternalRunsTool({ registry: new RunRegistry(1), runsDirectory: () => "/tmp" }) as any;
     expect(validateToolArguments(runsTool, toolCall("external_runs", USAGE_RUNS_FINAL))).toEqual(USAGE_RUNS_FINAL);

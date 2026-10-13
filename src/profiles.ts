@@ -264,7 +264,7 @@ export function loadExternalCatalog(agentDir = getAgentDir(), options: { legacyI
           const { frontmatter } = parseFrontmatter<Record<string, unknown>>(content);
           const obsolete = ["permission", "capabilitySet"].filter((key) => Object.prototype.hasOwnProperty.call(frontmatter, key));
           if (obsolete.length) {
-            throw new Error(`obsolete metadata ${obsolete.join(", ")} does not grant authority. Remove it. A role describes intent; pass permission on the Agent or workflow call, or set defaultPermission. Pi skills follow the harness preset.`);
+            throw new Error(`obsolete metadata ${obsolete.join(", ")} does not grant authority. Remove it. A role describes intent; pass permission on the external_delegate or workflow call, or set defaultPermission. Pi skills follow the harness preset.`);
           }
           if (Object.keys(frontmatter).some((key) => key !== "description")) throw new Error("shared roles support description only; use an exact override for execution settings");
         } else {
@@ -442,7 +442,7 @@ export function reconcilePiProfileWithHarness(
  * once, skipping any `<harness>-<role>` key that already has a real on-disk
  * entry (same override precedence resolveExternalProfile applies at
  * resolution time). This is the single shared merge every consumer that
- * needs a *complete* roster reuses: the Agent tool's catalog/help text, the
+ * needs a *complete* roster reuses: the external_delegate tool's catalog/help text, the
  * workflow tool's frozen per-run profile+model snapshot (so a workflow can
  * actually execute a synthesized pi role, not just resolve its name), and
  * /external's doctor/settings/profiles text. Real on-disk profiles are never
@@ -456,7 +456,7 @@ export function reconcilePiProfileWithHarness(
  * omits `model`/`thinking` (the common case, inheriting from its harness)
  * would carry `model: undefined` into that map and fail with "no model
  * selected" even though the exact same profile resolves and runs fine
- * through the Agent tool's resolveExternalProfile path.
+ * through the external_delegate tool's resolveExternalProfile path.
  *
  * A genuine conflict is deliberately *not* thrown here: this function runs
  * on every turn (coordinator prompt catalog) and at the top of every

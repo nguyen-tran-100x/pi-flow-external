@@ -306,7 +306,7 @@ setTimeout(() => {}, 60000);
     }, { timeout: 5000 }).toBe("gone");
   });
 
-  it("runs through the Agent tool with a session receipt and reconstructable output", async () => {
+  it("runs through the external_delegate tool with a session receipt and reconstructable output", async () => {
     installFake("agent-tool", `
 emit('step_start', { part: part({ type: 'step-start' }) });
 emit('text', { part: part({ type: 'text', text: 'opencode child done' }) });
@@ -314,7 +314,7 @@ emit('text', { part: part({ type: 'text', text: 'opencode child done' }) });
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", { description: "OpenCode work", role: "worker", harness: "opencode", prompt: "Do the task." })], { stopReason: "toolUse" }),
+      fauxAssistantMessage([fauxToolCall("external_delegate", { description: "OpenCode work", role: "worker", harness: "opencode", prompt: "Do the task." })], { stopReason: "toolUse" }),
       (context) => {
         rootContinuationContext = context;
         return fauxAssistantMessage("reported");

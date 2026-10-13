@@ -11,7 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { fauxAssistantMessage, type Context } from "../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/index.js";
 import { describe, expect, it, vi } from "vitest";
-import { spawnSubagent } from "../src/core/spawn.ts";
+import { CHILD_EXCLUDED_TOOLS, spawnSubagent } from "../src/core/spawn.ts";
 import { runRecordsDirectory } from "../src/core/retention.ts";
 import { setupPiSubagentTestHarness } from "./helpers/pi-subagent-harness.ts";
 import type { SubagentProfile, SubagentToolDetails, SubagentUsage } from "../src/types.ts";
@@ -488,11 +488,12 @@ describe("pi runtime curated tool tiers", () => {
     expect(names).not.toContain("bash");
   });
 
-  it("never includes Agent or workflow regardless of tier", async () => {
+  it("never includes external_delegate or workflow regardless of tier", async () => {
+    expect(CHILD_EXCLUDED_TOOLS).toEqual(["external_delegate", "workflow"]);
     for (const tier of ["readonly", "edit", "danger"] as const) {
       const { childContext } = await delegateToPiHarness(tier);
       const names = getToolNames(childContext);
-      expect(names).not.toContain("Agent");
+      expect(names).not.toContain("external_delegate");
       expect(names).not.toContain("workflow");
     }
   });
@@ -606,7 +607,7 @@ describe("workflow executes a synthesized pi role end-to-end", () => {
   });
 });
 
-describe("Agent tool reaches a synthesized pi role via legacy exact subagent_type", () => {
+describe("external_delegate tool reaches a synthesized pi role via legacy exact subagent_type", () => {
   const { createSession, disposeSession, makeExecutionContext } = setupPiSubagentTestHarness();
 
   it("resolves subagent_type:'pi-test-reviewer' with no on-disk profile file, matching the role+harness path", async () => {
@@ -614,7 +615,7 @@ describe("Agent tool reaches a synthesized pi role via legacy exact subagent_typ
       piHarnesses: { "pi-test": { modelId: "faux-thinker", thinking: "high" } },
     });
     const context = makeExecutionContext({ hasUI: false, model, modelRegistry }) as unknown as ExtensionContext;
-    const agent = session.getToolDefinition("Agent") as {
+    const agent = session.getToolDefinition("external_delegate") as {
       execute: (id: string, params: unknown, signal: unknown, onUpdate: unknown, ctx: unknown) => Promise<{ details: Record<string, unknown> }>;
     };
     registration.setResponses([() => fauxAssistantMessage("exact selector worked")]);
@@ -731,7 +732,7 @@ describe("stale default harness at delegation time", () => {
     agentDir = state.agentDir;
   });
 
-  it("fails an Agent call with no explicit harness rather than silently substituting agy", async () => {
+  it("fails an external_delegate call with no explicit harness rather than silently substituting agy", async () => {
     mkdirSync(join(agentDir, "pi-flow-external"), { recursive: true });
     writeFileSync(
       join(agentDir, "pi-flow-external", "settings.json"),
@@ -739,7 +740,7 @@ describe("stale default harness at delegation time", () => {
     );
     const { session, model, modelRegistry } = await createSession();
     const context = makeExecutionContext({ hasUI: false, model, modelRegistry }) as unknown as ExtensionContext;
-    const agent = session.getToolDefinition("Agent") as {
+    const agent = session.getToolDefinition("external_delegate") as {
       execute: (id: string, params: unknown, signal: unknown, onUpdate: unknown, ctx: unknown) => Promise<{ details: Record<string, unknown> }>;
     };
 

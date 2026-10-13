@@ -1222,10 +1222,10 @@ describe("workflow tool registration", () => {
     };
   }
 
-  it("registers both Agent and workflow by default", () => {
+  it("registers both external_delegate and workflow by default", () => {
     const names: string[] = [];
     createSubagentExtension()(fakeApi(names) as never);
-    expect(names).toContain("Agent");
+    expect(names).toContain("external_delegate");
     expect(names).toContain("external_help");
     expect(names).toContain("external_runs");
     expect(names).toContain("workflow");
@@ -1234,7 +1234,7 @@ describe("workflow tool registration", () => {
   it("omits the workflow tool when workflow is disabled", () => {
     const names: string[] = [];
     createSubagentExtension({ workflow: false })(fakeApi(names) as never);
-    expect(names).toEqual(["Agent", "external_help", "external_runs", "pi_flow_role_create", "pi_flow_harness_create"]);
+    expect(names).toEqual(["external_delegate", "external_help", "external_runs", "pi_flow_role_create", "pi_flow_harness_create"]);
   });
 });
 
@@ -1318,7 +1318,7 @@ describe("createWorkflowTool integration with pi custom profiles", () => {
 
     expect(result.details.status).toBe("completed");
     // Additive normalized field: a coordinating model reading either tool's
-    // details sees the same "done" vocabulary Agent's own details.status
+    // details sees the same "done" vocabulary external_delegate's own details.status
     // already uses, without workflow's internal "completed" state name
     // changing for existing readers (journal/replay/rendering).
     expect(result.details.lifecycleStatus).toBe("done");
@@ -1412,7 +1412,7 @@ describe("createWorkflowTool integration with pi custom profiles", () => {
       expect(queuedEntry).toBeDefined();
     }, { timeout: 5_000 });
     // This is the fix under test: without an initial registry.update() seed at
-    // queue time (mirroring the direct Agent tool's own top-of-executeRun
+    // queue time (mirroring the direct external_delegate tool's own top-of-executeRun
     // update), a workflow child had no observation at all until its first
     // real progress event — after limiter acquisition — so a still-queued
     // child would default to reporting "running" with no queuedAt instead of

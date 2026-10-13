@@ -209,7 +209,7 @@ describe("e2e external script pi harness precheck", () => {
 });
 
 // These exercise the default deterministic lane end-to-end (argument
-// parsing, in-process SDK session construction, and the Agent/workflow/
+// parsing, in-process SDK session construction, and the external_delegate/workflow/
 // external_runs tool executors) against a fake "codex" binary standing in
 // for the real CLI, so they stay offline and deterministic while still
 // running the actual script rather than duplicating the SDK-level coverage
@@ -270,11 +270,11 @@ setInterval(() => {}, 1000);
 `;
   }
 
-  it("runs a direct Agent call against a fake codex binary with no root LLM call", async () => {
+  it("runs a direct external_delegate call against a fake codex binary with no root LLM call", async () => {
     const binDir = await makeFakeCodexBin(readingReplyScript());
     const result = runScript(["--backend", "codex"], { PATH: `${binDir}:${process.env.PATH ?? ""}` }, 20_000);
     expect(result.code, result.stderr).toBe(0);
-    expect(result.stdout).toContain("PASS codex Agent deterministic E2E");
+    expect(result.stdout).toContain("PASS codex external_delegate deterministic E2E");
   });
 
   it("passes explicit --permission danger and writes a version 5 settings binding plus nested instruction fixture", async () => {
@@ -286,7 +286,7 @@ setInterval(() => {}, 1000);
       20_000,
     );
     expect(result.code, result.stderr).toBe(0);
-    expect(result.stdout).toContain("PASS codex Agent deterministic E2E");
+    expect(result.stdout).toContain("PASS codex external_delegate deterministic E2E");
     const agentDir = join(runRoot, "agent");
     const settings = JSON.parse(await readFile(join(agentDir, "pi-flow-external", "settings.json"), "utf8"));
     expect(settings.version).toBe(5);
@@ -333,11 +333,11 @@ setInterval(() => {}, 1000);
     expect(result.stdout).toContain("PASS codex workflow deterministic E2E");
   });
 
-  it("cancels a backgrounded Agent through external_runs against a hung fake codex binary", async () => {
+  it("cancels a backgrounded external_delegate through external_runs against a hung fake codex binary", async () => {
     const binDir = await makeFakeCodexBin(hungWithActivityScript());
     const result = runScript(["--backend", "codex", "--interrupt"], { PATH: `${binDir}:${process.env.PATH ?? ""}` }, 20_000);
     expect(result.code, result.stderr).toBe(0);
-    expect(result.stdout).toContain("PASS codex interrupted Agent deterministic E2E");
+    expect(result.stdout).toContain("PASS codex interrupted external_delegate deterministic E2E");
   });
 
   it("fails the exact-result gate when the fake codex reply is a fixed string instead of the file's actual content", async () => {
@@ -360,7 +360,7 @@ setInterval(() => {}, 1000);
       20_000,
     );
     expect(result.code, result.stderr).toBe(0);
-    expect(result.stdout).toContain("PASS codex Agent deterministic E2E");
+    expect(result.stdout).toContain("PASS codex external_delegate deterministic E2E");
 
     expect(await readFile(sentinelFile, "utf8")).toBe("{}");
     expect((await readdir(sentinelAgentDir)).sort()).toEqual(entriesBefore.sort());

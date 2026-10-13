@@ -25,7 +25,7 @@ describe("workflow agent snapshot copy", () => {
     // workflow/tool.ts never forwarded retries/retryOf/permissionRequested/
     // thinkingClamped, so a workflow child that hit an agy retry or a
     // permission/thinking adjustment silently lost that disclosure the
-    // moment it ran inside a workflow instead of as a direct Agent call.
+    // moment it ran inside a workflow instead of as a direct external_delegate call.
     const agent = baseAgent();
     const resultDetails: SubagentToolDetails = {
       description: "child",

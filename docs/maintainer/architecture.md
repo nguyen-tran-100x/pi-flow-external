@@ -6,7 +6,7 @@ Dated files under `docs/archive/plans/` and released changelog sections are hist
 
 ## 1. Entry points and execution environments
 
-`index.ts` loads `src/pi-subagent.ts`. The ordinary driver sees `Agent`, `external_help`, `external_runs`, and optional `workflow`. Assisted authoring finalizers are exposed only during `/external config role assist` or `/external config harness assist`.
+`index.ts` loads `src/pi-subagent.ts`. The ordinary driver sees `external_delegate`, `external_help`, `external_runs`, and optional `workflow`. Assisted authoring finalizers are exposed only during `/external config role assist` or `/external config harness assist`.
 
 Six built-in CLI harnesses (`agy`, `claude`, `codex`, `grok`, `muse`, `opencode`) and registered `pi-*` harnesses share the same role-selection path. Pi harnesses run in-process through the SDK with the parent's model registry, not through a spawned CLI. Native Pi `subagents/` files are outside this catalog and are never modified.
 
@@ -42,7 +42,7 @@ A trusted project `.pi/pi-flow-external/settings.json` may override only `defaul
 - `src/profiles.ts`: common catalog/selection entry points; legacy profile parsing is retained for conversion and diagnostics.
 - `src/default-roles.ts`: the six in-memory roles. `src/defaults.ts`: labels and historical seed inventory, not a live seeder.
 - `src/harnesses.ts`: Pi registration validation/projection.
-- `src/execution-config.ts`: effective model/effort/budget resolution used by Agent and workflow before launch.
+- `src/execution-config.ts`: effective model/effort/budget resolution used by external_delegate and workflow before launch.
 
 ## 3. Guided settings and deterministic lifecycle
 
@@ -73,9 +73,9 @@ Recovery offers conversion only for supported inputs; malformed/future settings 
 ## 4. Launch, adapters and authority
 
 ```text
-Agent selection ────────────┐
-                           ├─ effective execution config ─ spawn ─ backend ─ verified result
-Workflow frozen catalog ───┘                                      └─ evidence/progress
+external_delegate selection ─┐
+                             ├─ effective execution config ─ spawn ─ backend ─ verified result
+Workflow frozen catalog ─────┘                                      └─ evidence/progress
 ```
 
 `src/pi-subagent.ts` registers tools and owns the session limiter, runtime flags, coordinator guidance and shutdown. `src/core/spawn.ts` handles effective permissions, resume, timeout, records, backend dispatch and terminal mapping. `src/core/permissions.ts` owns tier mapping and Pi tool allow-lists. Queue time is excluded from the normal run timeout; confirmed nested activity may extend it once, capped at twice the base. Process cancellation uses the CLI process-tree helpers; Pi cancellation is cooperative.

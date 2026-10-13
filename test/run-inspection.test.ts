@@ -500,10 +500,14 @@ describe("run evidence inspection", () => {
     const legacyDir = join(root, legacyId);
     await mkdir(legacyDir, { recursive: true });
     await writeFile(join(legacyDir, "events.ndjson"), `${JSON.stringify({ runId: legacyId, sequence: 0, type: "backend_event", data: { backend: "codex", event: { type: "item.completed", item: { type: "agent_message", text: "legacy answer" } } } })}\n`, "utf8");
-    await writeFile(join(legacyDir, "summary.json"), JSON.stringify({ version: 1, runId: legacyId, summary: { status: "done", result: "legacy answer" } }), "utf8");
+    const legacySummary = JSON.stringify({ version: 1, runId: legacyId, summary: { status: "done", result: "legacy answer" } });
+    await writeFile(join(legacyDir, "summary.json"), legacySummary, "utf8");
 
     const legacy = await inspectRun({ runsDirectory: root, runId: legacyId, view: "output" });
     expect(legacy.items).toEqual([{ text: "legacy answer" }]);
+    const legacyFinal = await inspectRun({ runsDirectory: root, runId: legacyId, view: "final" });
+    expect(legacyFinal).toMatchObject({ finalAvailable: true, items: [{ text: "legacy answer" }] });
+    expect(await readFile(join(legacyDir, "summary.json"), "utf8")).toBe(legacySummary);
     const first = await listRunRecords({ runsDirectory: root, sessionId: "current", project: "/repo", workflowRunId: "wf_current", limit: 1 });
     expect(first.items).toEqual([expect.objectContaining({ runId: "run_z", status: "done" })]);
     await writeRun(root, "run_zz", { ...scoped, queuedAt: "2026-09-14T05:00:00.000Z", description: "Inserted" }, { status: "done", result: "zz" });

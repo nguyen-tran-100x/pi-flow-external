@@ -1,6 +1,6 @@
 # pi-flow external context
 
-This package is a fork of pi-flow whose `Agent` and `workflow` tools are reserved for external agent harness delegation.
+This package is a fork of pi-flow whose `external_delegate` and `workflow` tools are reserved for external agent harness delegation.
 
 ## Domain language
 
@@ -10,11 +10,11 @@ This package is a fork of pi-flow whose `Agent` and `workflow` tools are reserve
 - **Scoped customization:** JSON harness defaults and sparse role-on-harness scalar settings; Markdown `overrides/<harness>/<role>.md` replaces instructions only. Named Pi model/effort are overridable defaults. Compatibility exact selectors are explicit, not name-parsed.
 - **Resolved profile:** The internal execution object produced by binding a role definition to a harness. It is not a user-facing command and it is not a file under Pi's native `subagents/` directory. Instruction precedence is scoped replacement, then shared role, then built-in; scalars resolve binding > harness > backend defaults.
 - **Native Pi subagent:** A subagent file owned by Pi's native subagent system. This extension does not load or modify those files. They are not entries in the external catalog.
-- **Agent call:** A direct external delegation selected by `role` and optional `harness` (`agy`, `claude`, `codex`, `grok`, `muse`, `opencode`, or a registered named Pi harness), or by legacy exact `subagent_type`.
+- **external_delegate call:** A direct external delegation selected by `role` and optional `harness` (`agy`, `claude`, `codex`, `grok`, `muse`, `opencode`, or a registered named Pi harness), or by legacy exact `subagent_type`.
 - **Named Pi harness configuration:** A `pi-<label>` entry in settings v5 `harnesses`, defaulting to a `provider/model` id and a thinking policy, run in-process via Pi's own SDK rather than as a spawned CLI. `harness` selects *which* configuration; `backend` (always the literal `"pi"` for these) selects the execution mechanism. The six built-in roles are available on it immediately from the same canonical source as the six CLI harnesses, with zero generated files.
 - **Parent context:** An opt-in frozen text snapshot: `none` (default), `recent` with last N user turns including the current turn, or `full` available post-compaction conversation. It is background for a new external conversation, not a native session clone, system-prompt inheritance, or guaranteed cache reuse. Sharing excludes thinking and pending calls and cannot be combined with child `resume`. Workflow children share one invocation-time snapshot; prior child outputs remain explicit inputs.
 - **Workflow call:** Trusted JavaScript orchestration beginning with `meta.apiVersion: 1` that may fan out several explicit external `agent()` calls. Each child returns a value or throws a catchable `ChildRunError`; escaping child errors fail the workflow and drain siblings.
-- **Background run:** A validated, registered `Agent` or `workflow` invocation that returns a stable handle while work remains owned by the originating session. It is not a daemon or cross-session job.
+- **Background run:** A validated, registered `external_delegate` or `workflow` invocation that returns a stable handle while work remains owned by the originating session. It is not a daemon or cross-session job.
 - **Run supervision:** `external_runs` list/inspect/wait/cancel over stable IDs. Wait observes selected terminal outcomes without cancelling pending work; output and diagnostics use opaque cursors.
 - **Delegation intent:** The backend, resolved identity, task label, role purpose, and workspace shown to the user before and during direct execution.
 - **Access disclosure:** A visible statement of effective external CLI access and the external-host boundary; it does not create a sandbox or read-only guarantee.
@@ -27,9 +27,9 @@ This package is a fork of pi-flow whose `Agent` and `workflow` tools are reserve
 
 ## Selection
 
-Claude Code, Codex CLI, Antigravity, Grok Build CLI, Muse Code, OpenCode, and registered named Pi harnesses are selected through this extension's `Agent` or `workflow`. A role is the work. A harness is the execution environment. Pi's native subagent files stay outside the catalog and are not modified.
+Claude Code, Codex CLI, Antigravity, Grok Build CLI, Muse Code, OpenCode, and registered named Pi harnesses are selected through this extension's `external_delegate` or `workflow`. A role is the work. A harness is the execution environment. Pi's native subagent files stay outside the catalog and are not modified.
 
-The ordinary driver sees `Agent`, optional `workflow`, and read-only `external_help`. `pi_flow_role_create` is activated only by `/external config role assist`. `pi_flow_harness_create` is activated only by `/external config harness assist`. External children start in the requested working directory, but backend-native nested helpers may create or use a separate workspace; prompts that request further nesting should include explicit absolute paths and all required context. Named Pi harness children are the one exception to "backend-native nested helpers may use a different workspace": a pi child runs in-process with no extensions, prompt templates, or themes loaded. The registration preset chooses skills: `minimal` leaves them unloaded, and `skills` loads installed skills, including project skills only when the project is trusted. Extensions stay unloaded, so the child still cannot launch a further nested agent through an extension.
+The ordinary driver sees `external_delegate`, optional `workflow`, and read-only `external_help`. `pi_flow_role_create` is activated only by `/external config role assist`. `pi_flow_harness_create` is activated only by `/external config harness assist`. External children start in the requested working directory, but backend-native nested helpers may create or use a separate workspace; prompts that request further nesting should include explicit absolute paths and all required context. Named Pi harness children are the one exception to "backend-native nested helpers may use a different workspace": a pi child runs in-process with no extensions, prompt templates, or themes loaded. The registration preset chooses skills: `minimal` leaves them unloaded, and `skills` loads installed skills, including project skills only when the project is trusted. Extensions stay unloaded, so the child still cannot launch a further nested agent through an extension.
 
 ## User control surface
 

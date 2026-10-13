@@ -7,13 +7,13 @@ import { filterExternalAgentProfiles, getSubagentProfiles } from "../src/profile
 import { getConfiguredHarnessNames } from "../src/harnesses.ts";
 import { setupPiSubagentTestHarness } from "./helpers/pi-subagent-harness.ts";
 
-describe("external-only Agent policy", () => {
+describe("external-only external_delegate policy", () => {
   let agentDir = "";
   const { createSession, disposeSession } = setupPiSubagentTestHarness((state) => {
     agentDir = state.agentDir;
   });
 
-  it("filters built-in pi-backed profiles out of the Agent roster", () => {
+  it("filters built-in pi-backed profiles out of the external_delegate roster", () => {
     const profiles = filterExternalAgentProfiles(getSubagentProfiles(agentDir, { legacyInspection: true }));
     expect(profiles.has("general-purpose")).toBe(false);
     expect(profiles.has("explorer")).toBe(false);
@@ -23,7 +23,7 @@ describe("external-only Agent policy", () => {
     const { session, registration } = await createSession();
     let rootContinuation = "";
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", {
+      fauxAssistantMessage([fauxToolCall("external_delegate", {
         description: "Explore repo",
         subagent_type: "explorer",
         prompt: "Map the repository.",

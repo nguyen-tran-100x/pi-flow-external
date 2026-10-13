@@ -41,7 +41,7 @@ Solutions to common issues, authentication questions, and environment quirks whe
 ### 8. Child Missing Earlier Conversation Context
 - **Fix:** Explicitly pass conversation turns using `context`:
   ```ts
-  Agent({ description: "Follow-up review", role: "reviewer", context: { mode: "recent", turns: 5 }, prompt: "..." })
+  external_delegate({ description: "Follow-up review", role: "reviewer", context: { mode: "recent", turns: 5 }, prompt: "..." })
   ```
 
 ### 9. Workflow Rejected Before Launch
@@ -66,7 +66,7 @@ Add `pi-flow-external` tool names to `excludeRenderers` in `~/.pi/agent/pi-cc-ex
 
 ```json
 {
-  "excludeRenderers": ["Agent", "workflow", "external_runs"]
+  "excludeRenderers": ["external_delegate", "workflow", "external_runs"]
 }
 ```
 

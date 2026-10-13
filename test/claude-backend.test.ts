@@ -187,7 +187,7 @@ describe("pi-subagent claude backend", () => {
     })).toBe("assistant text");
   });
 
-  it.each(["Agent", "workflow"])("transfers parent context through %s to Claude stdin and receipts", async (toolName) => {
+  it.each(["external_delegate", "workflow"])("transfers parent context through %s to Claude stdin and receipts", async (toolName) => {
     const subagentsDir = join(agentDir, "pi-flow-external", "overrides");
     const binDir = join(tempDir, "bin-claude");
     const argsPath = join(tempDir, "claude-args.json");
@@ -218,7 +218,7 @@ console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall(toolName, toolName === "Agent" ? {
+      fauxAssistantMessage([fauxToolCall(toolName, toolName === "external_delegate" ? {
         description: "Claude review",
         subagent_type: "claude-reviewer",
         prompt: "Review the latest diff.",
@@ -260,9 +260,9 @@ console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false
     expect(claudeRun.stdin).not.toContain("context-test");
     const rootMessages = JSON.stringify(rootContinuationContext?.messages);
     expect(rootMessages).toContain("claude child done");
-    if (toolName === "Agent") expect(rootMessages).toMatch(/\[run run_[0-9a-f]+\]/);
+    if (toolName === "external_delegate") expect(rootMessages).toMatch(/\[run run_[0-9a-f]+\]/);
     const toolResult = session.messages.find((m) => m.role === "toolResult" && m.toolName === toolName) as any;
-    const receipt = toolName === "Agent" ? toolResult.details : toolResult.details.agents[0];
+    const receipt = toolName === "external_delegate" ? toolResult.details : toolResult.details.agents[0];
     expect(receipt.context).toMatchObject({ mode: "recent", requestedTurns: 1, sharedTurns: 1 });
     const summary = JSON.parse(readFileSync(join(receipt.recordPath, "summary.json"), "utf8"));
     expect(summary.summary.context).toEqual(receipt.context);
@@ -270,7 +270,7 @@ console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false
     disposeSession(session);
   });
 
-  it("surfaces permission denials and the run id in the Agent tool text", async () => {
+  it("surfaces permission denials and the run id in the external_delegate tool text", async () => {
     const subagentsDir = join(agentDir, "pi-flow-external", "overrides");
     const binDir = join(tempDir, "bin-claude-denials");
     mkdirSync(subagentsDir, { recursive: true });
@@ -293,7 +293,7 @@ console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", {
+      fauxAssistantMessage([fauxToolCall("external_delegate", {
         description: "Claude implement",
         subagent_type: "claude-implementer",
         prompt: "Do the upgrade.",
@@ -341,7 +341,7 @@ console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", {
+      fauxAssistantMessage([fauxToolCall("external_delegate", {
         description: "Debug failing tests",
         subagent_type: "claude-worker",
         permission: "edit",

@@ -52,7 +52,7 @@ describe("delegation transparency rendering", () => {
       profilePath,
       "---\ndescription: Custom cached explorer reason.\n---\nExplore repositories read-only.\n",
     );
-    const tool = captureTools().find((candidate) => (candidate as RenderableTool & { name?: string }).name === "Agent")!;
+    const tool = captureTools().find((candidate) => (candidate as RenderableTool & { name?: string }).name === "external_delegate")!;
     const theme = makeMockTheme() as never;
 
     const callArgs = {
@@ -137,7 +137,7 @@ describe("delegation transparency rendering", () => {
   });
 
   it("leaves an unresolved delegation unlabeled by another harness's enforcement", () => {
-    const tool = captureTools().find((candidate) => (candidate as RenderableTool & { name?: string }).name === "Agent")!;
+    const tool = captureTools().find((candidate) => (candidate as RenderableTool & { name?: string }).name === "external_delegate")!;
     const call = tool.renderCall?.(
       {
         description: "Unknown delegation",
@@ -162,7 +162,7 @@ describe("delegation transparency rendering", () => {
       join(agentDir, "pi-flow-external", "settings.json"),
       JSON.stringify({ version: 5, harnesses: { "pi-deepseek": { model: "deepseek/deepseek-chat", thinking: "high", preset: "minimal" } } }),
     );
-    const tool = captureTools().find((candidate) => (candidate as RenderableTool & { name?: string }).name === "Agent")!;
+    const tool = captureTools().find((candidate) => (candidate as RenderableTool & { name?: string }).name === "external_delegate")!;
     const theme = makeMockTheme() as never;
 
     const callArgs = {

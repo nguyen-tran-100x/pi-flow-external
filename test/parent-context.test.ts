@@ -37,7 +37,7 @@ describe("parent context transfer", () => {
     const messages = [user("old requirement"), assistant([{ type: "text", text: "old answer" }]), user("current requirement"),
       assistant([{ type: "thinking", thinking: "PRIVATE" }, { type: "toolCall", id: "read1", name: "read", arguments: { path: "/repo/a" } }]),
       { role: "toolResult", toolCallId: "read1", toolName: "read", content: [{ type: "text", text: "file evidence" }], details: { secret: "PRIVATE" }, isError: false, timestamp: 0 } as any,
-      assistant([{ type: "toolCall", id: "delegation", name: "Agent", arguments: { prompt: "recursive briefing" } }]),
+      assistant([{ type: "toolCall", id: "delegation", name: "external_delegate", arguments: { prompt: "recursive briefing" } }]),
     ];
     const result = prepareParentContext("Review only", { mode: "recent", turns: 1 }, messages, "delegation");
     expect(result.prompt).toContain("current requirement");
