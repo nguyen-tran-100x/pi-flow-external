@@ -59,14 +59,14 @@ Solutions to common issues, authentication questions, and environment quirks whe
 
 ## Third-Party UI Compatibility: `pi-cc` / `ccstyle`
 
-If using [`pi-cc-extensions`](https://www.npmjs.com/package/pi-cc-extensions), its default rendering overrides can cause `workflow` and `wait` progress cards to show a generic `Pending…` message.
+If using [`pi-cc-extensions`](https://www.npmjs.com/package/pi-cc-extensions), its default rendering overrides can cause `external_workflow` and `external_runs` wait progress cards to show a generic `Pending…` message.
 
 ### Resolution
 Add `pi-flow-external` tool names to `excludeRenderers` in `~/.pi/agent/pi-cc-extensions.json`:
 
 ```json
 {
-  "excludeRenderers": ["external_delegate", "workflow", "external_runs"]
+  "excludeRenderers": ["external_delegate", "external_workflow", "external_runs"]
 }
 ```
 

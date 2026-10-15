@@ -61,18 +61,18 @@ export interface SubagentExtensionOptions {
    * Maximum number of subagents allowed to run concurrently across the whole
    * agent run (a global in-flight cap, not a per-level fan-out width). A slot is
    * taken when a subagent launches and released when it completes, fails, or is
-   * aborted. The cap is shared by the `Agent` tool and the `workflow` tool.
+   * aborted. The cap is shared by the `external_delegate` tool and the `external_workflow` tool.
    */
   maxConcurrentSubagents?: number;
   /**
    * Maximum wall-clock runtime for each launched subagent, in milliseconds.
    * Defaults to a generous global guardrail. Set to 0 to disable. The limit is
-   * shared by direct `Agent` calls and workflow `agent()` calls, and can also
+   * shared by direct `external_delegate` calls and workflow `agent()` calls, and can also
    * be overridden with `--subagent-timeout-ms`.
    */
   subagentTimeoutMs?: number;
   /**
-   * Register the dynamic `workflow` tool alongside `Agent`. Defaults to true:
+   * Register the dynamic `external_workflow` tool alongside `external_delegate`. Defaults to true:
    * one product, two entry points. Set to false for a subagents-only surface.
    */
   workflow?: boolean;

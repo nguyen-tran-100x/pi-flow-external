@@ -36,13 +36,13 @@ A role is shared authoring only: one markdown file under pi-flow-external/roles/
 
 Describe read-only or editing intent in the instructions. Do not ask for a permission tier: a role does not grant authority. The caller passes permission, or the global defaultPermission applies. Do not ask about backend, model, or thinking: shared roles never pin those, and backend-specific execution settings belong in /external config role set <role> --harness <name>; instruction replacements use /external config role edit <role> --harness <name>. When ready, summarize once and call ${ROLE_TOOL_NAME}.
 
-Do not write files yourself and do not run external_delegate or workflow. The tool will show what will be created for review, request confirmation, and write it offline without a backend smoke test. A role is not an authenticated connection; readiness smoke testing belongs to harness registration.`;
+Do not write files yourself and do not run external_delegate or external_workflow. The tool will show what will be created for review, request confirmation, and write it offline without a backend smoke test. A role is not an authenticated connection; readiness smoke testing belongs to harness registration.`;
 
 export const HARNESS_INTERVIEW_PROMPT = `Help me register one named Pi harness configuration through an AI-assisted interview.
 
 Ask for a "pi-<label>" name, a provider/model id (validated live against the model registry), an optional thinking level (off/minimal/low/medium/high/xhigh; default off), and a resource preset. The preset is a simple choice of minimal or skills. minimal is the default and loads no skills. skills loads installed skills; project skills load only when the project is trusted. The six canonical roles (explorer, planner, implementer, reviewer, qa, worker) become automatically available on this harness the moment it is registered — no per-role file needed. When ready, summarize once and call ${HARNESS_TOOL_NAME}.
 
-Do not write files yourself and do not run external_delegate or workflow in this branch. The tool will show what will be registered for review, request confirmation, stage it, run a real in-process pi smoke test, and either install it or roll it back.`;
+Do not write files yourself and do not run external_delegate or external_workflow in this branch. The tool will show what will be registered for review, request confirmation, stage it, run a real in-process pi smoke test, and either install it or roll it back.`;
 
 const roleParameters = Type.Object({
   name: Type.String({ description: "Lowercase shared role name, such as security-reviewer. No backend prefix; reviewer replaces the built-in reviewer." }),

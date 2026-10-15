@@ -489,12 +489,12 @@ describe("pi runtime curated tool tiers", () => {
   });
 
   it("never includes external_delegate or workflow regardless of tier", async () => {
-    expect(CHILD_EXCLUDED_TOOLS).toEqual(["external_delegate", "workflow"]);
+    expect(CHILD_EXCLUDED_TOOLS).toEqual(["external_delegate", "external_workflow"]);
     for (const tier of ["readonly", "edit", "danger"] as const) {
       const { childContext } = await delegateToPiHarness(tier);
       const names = getToolNames(childContext);
       expect(names).not.toContain("external_delegate");
-      expect(names).not.toContain("workflow");
+      expect(names).not.toContain("external_workflow");
     }
   });
 });
@@ -577,7 +577,7 @@ describe("workflow executes a synthesized pi role end-to-end", () => {
       piHarnesses: { "pi-test": { modelId: "faux-thinker", thinking: "high" } },
     });
     const context = makeExecutionContext({ hasUI: false, model, modelRegistry }) as unknown as ExtensionContext;
-    const workflow = session.getToolDefinition("workflow") as {
+    const workflow = session.getToolDefinition("external_workflow") as {
       execute: (id: string, params: unknown, signal: unknown, onUpdate: unknown, ctx: unknown) => Promise<{ details: Record<string, unknown> }>;
     };
     let sawChildModel = "";

@@ -18,6 +18,7 @@ Core reference guides for configuring and using the extension with Pi:
 | **[Troubleshooting](troubleshooting.md)** | Diagnostic recipes, authentication checks, and `pi-cc-extensions` renderer compatibility. |
 | **[Migration Guide (v4 → v5)](migration-v4-to-v5.md)** | Upgrading from older configurations, backups, command mappings, and safe file purging. |
 | **[Tool Rename Migration (`Agent` → `external_delegate`)](migration-agent-to-external-delegate.md)** | Updating codemode calls, hooks, receipt checks, and renderer exclusions after the direct tool rename. |
+| **[Workflow Tool Rename (`workflow` → `external_workflow`)](migration-workflow-to-external-workflow.md)** | Updating workflow callers, hooks, receipt checks, and renderer exclusions; script helpers are unchanged. |
 
 ---
 
@@ -26,7 +27,7 @@ Specifications for programmatic subagent delegation and tool outputs:
 
 | Document | Status | Purpose |
 |---|---|---|
-| **[Public Contract v1](public-contract.md)** | `Normative Contract` | Schema definitions, envelope shapes (`{ ok, data, error }`), and delivery invariants for `external_delegate`, `workflow`, and `external_runs`. |
+| **[Public Contract v1](public-contract.md)** | `Normative Contract` | Schema definitions, envelope shapes (`{ ok, data, error }`), and delivery invariants for `external_delegate`, `external_workflow`, and `external_runs`. |
 
 ---
 
@@ -55,6 +56,6 @@ Non-normative proposals, design investigations, and dated implementation records
 
 ## Document Status Legend
 
-- **`Normative Guide` / `Normative Contract`:** Authoritative documentation reflecting current production behavior in version 3.x.
+- **`Normative Guide` / `Normative Contract`:** Authoritative documentation reflecting the current implementation.
 - **`Design Direction`:** Approved future UX/architectural targets; does not claim current implementation satisfies it.
 - **`Historical Record` / `Archive`:** Preserved investigation notes and dated planning documents. Superseded where newer contracts exist.

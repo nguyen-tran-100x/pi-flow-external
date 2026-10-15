@@ -264,7 +264,7 @@ export function loadExternalCatalog(agentDir = getAgentDir(), options: { legacyI
           const { frontmatter } = parseFrontmatter<Record<string, unknown>>(content);
           const obsolete = ["permission", "capabilitySet"].filter((key) => Object.prototype.hasOwnProperty.call(frontmatter, key));
           if (obsolete.length) {
-            throw new Error(`obsolete metadata ${obsolete.join(", ")} does not grant authority. Remove it. A role describes intent; pass permission on the external_delegate or workflow call, or set defaultPermission. Pi skills follow the harness preset.`);
+            throw new Error(`obsolete metadata ${obsolete.join(", ")} does not grant authority. Remove it. A role describes intent; pass permission on the external_delegate or external_workflow call, or set defaultPermission. Pi skills follow the harness preset.`);
           }
           if (Object.keys(frontmatter).some((key) => key !== "description")) throw new Error("shared roles support description only; use an exact override for execution settings");
         } else {

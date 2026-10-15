@@ -187,7 +187,7 @@ describe("pi-subagent claude backend", () => {
     })).toBe("assistant text");
   });
 
-  it.each(["external_delegate", "workflow"])("transfers parent context through %s to Claude stdin and receipts", async (toolName) => {
+  it.each(["external_delegate", "external_workflow"])("transfers parent context through %s to Claude stdin and receipts", async (toolName) => {
     const subagentsDir = join(agentDir, "pi-flow-external", "overrides");
     const binDir = join(tempDir, "bin-claude");
     const argsPath = join(tempDir, "claude-args.json");

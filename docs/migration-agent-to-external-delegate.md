@@ -44,26 +44,12 @@ return receipt.data.run;
 - **Envelope:** `contractVersion` is still `1`. `action` is still `"delegate"`, and runs still report `kind: "agent"`. `ok`, `data`, `error`, and `warnings` keep their meaning. See [Public Contract v1](public-contract.md).
 - **Settings and saved runs:** settings stay at version 5. No settings conversion or saved-run rewrite is needed.
 - **Workflows:** the workflow `agent()` function keeps its name. It exists only inside workflow scripts and never appears in a tool list.
-- **Other tools:** `workflow`, `external_runs`, and `external_help` keep their names.
+- **Other tools at the time of this rename:** `workflow`, `external_runs`, and `external_help` kept their names. In the subsequent release, `workflow` became [`external_workflow`](migration-workflow-to-external-workflow.md); use that name for current callers.
 
 ---
 
 ## Background Runs Still Need Collecting
 
-A background run does not notify or resume the session when it finishes. Ending the turn does not bring the result back. Collect it with `external_runs`:
+Foreground is the default, including parallel workflows. Use background for useful independent work or an explicit user request—not routinely followed by an immediate wait. Background completion does not notify or wake the parent. Retain the ID and collect/check the outcome unless the user explicitly defers; keep the owning session open.
 
-```ts
-const receipt = await tools.external_delegate({
-  description: "Audit endpoints",
-  role: "reviewer",
-  prompt: "Audit the endpoints read-only.",
-  background: true,
-});
-if (!receipt.ok) return receipt.error;
-const runId = receipt.data.run.runId;
-
-await tools.external_runs({ action: "wait", runIds: [runId], mode: "all" });
-const final = await tools.external_runs({ action: "inspect", runIds: [runId], view: "final" });
-```
-
-`final` holds only a verified successful answer. For a failed run, read the outcome from `wait` and the details with `view: "diagnostics"`.
+Use inline successful output when available; otherwise inspect `final` and follow pagination. Failed runs need outcomes and `diagnostics`, not a successful final answer. See the [launch → independent work → collect example](supervision-and-runtime.md#background-example-launch--independent-work--collect) for the complete sequence and interruption rules.

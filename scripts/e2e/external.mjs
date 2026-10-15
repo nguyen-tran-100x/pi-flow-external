@@ -81,7 +81,7 @@ function parseArgs(argv) {
   // --root-model/--root-thinking only mean anything when a real root Pi LLM is
   // actually prompted to choose the tool call, which only happens in the
   // --routing-smoke lane. The default deterministic lane below never prompts
-  // a root model at all (it calls external_delegate/workflow/external_runs directly), so
+  // a root model at all (it calls external_delegate/external_workflow/external_runs directly), so
   // accepting these flags there would silently do nothing and mislead callers
   // into thinking they changed root behavior.
   if (!options.routingSmoke && (rootModelProvided || rootThinkingProvided)) {
@@ -127,7 +127,7 @@ function help() {
 
 Default mode is deterministic and root-model-free: it builds an in-process
 Pi SDK session with a faux, never-prompted root model and calls the
-external_delegate/workflow/external_runs tool executors directly, so tool selection is
+external_delegate/external_workflow/external_runs tool executors directly, so tool selection is
 never left to a live LLM decision. The selected external backend's child
 process (or, for --backend pi, its in-process nested Pi child) is real.
 
@@ -436,7 +436,7 @@ async function runRoutingSmoke(options) {
     const permission = options.permission;
     const workflow = `export const meta = { apiVersion: 1, name: "external_e2e", description: "External workflow smoke" };\nconst results = await parallel([\n  () => agent(${JSON.stringify(childPrompt)}, { label: "one", role: ${JSON.stringify(role)}, harness: ${JSON.stringify(harnessName)}, permission: ${JSON.stringify(permission)} }),\n  () => agent(${JSON.stringify(childPrompt)}, { label: "two", role: ${JSON.stringify(role)}, harness: ${JSON.stringify(harnessName)}, permission: ${JSON.stringify(permission)} })\n]);\nreturn results;`;
     const rootPrompt = options.workflow
-      ? `Call workflow exactly once with background:true and this exact script:\n\n${workflow}\n\nUse external_runs wait on the returned workflow run ID, then inspect its output and summary. Report the returned token lines and WORKFLOW_SUPERVISION_OK.`
+      ? `Call external_workflow exactly once with background:true and this exact script:\n\n${workflow}\n\nUse external_runs wait on the returned workflow run ID, then inspect its output and summary. Report the returned token lines and WORKFLOW_SUPERVISION_OK.`
       : options.interrupt
         ? `Call external_delegate exactly once with background:true, description "External interruption smoke", role ${JSON.stringify(role)}, harness ${JSON.stringify(harnessName)}, permission ${JSON.stringify(permission)}, and prompt ${JSON.stringify(childPrompt)}. Cancel its returned run ID with external_runs using reason "E2E requested cancellation", wait for that run, then inspect its output and diagnostics. Report E2E_CANCELLED.`
         : `Call external_delegate exactly once with description "External smoke", role ${JSON.stringify(role)}, harness ${JSON.stringify(harnessName)}, permission ${JSON.stringify(permission)}, and prompt ${JSON.stringify(childPrompt)}. Report its exact result.`;
@@ -447,7 +447,7 @@ async function runRoutingSmoke(options) {
       "pi", "-p", "--mode", "json", "--model", options.rootModel, "--thinking", options.rootThinking,
       "--session-dir", sessionDir, "--no-extensions", "--extension", path.join(repoRoot, "index.ts"),
       "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
-      "--tools", options.workflow ? "workflow,external_runs" : options.interrupt ? "external_delegate,external_runs" : "external_delegate", "--approve", `@${promptPath}`,
+      "--tools", options.workflow ? "external_workflow,external_runs" : options.interrupt ? "external_delegate,external_runs" : "external_delegate", "--approve", `@${promptPath}`,
     ];
 
     console.log(`Running ${options.backend}${mode} routing-smoke E2E`);
@@ -495,7 +495,7 @@ async function runRoutingSmoke(options) {
 // ---------------------------------------------------------------------------
 // Default deterministic lane: no root LLM is ever prompted. This builds an
 // in-process Pi SDK session (faux, never-streamed root model) and calls the
-// external_delegate/workflow/external_runs tool executors directly, exactly as
+// external_delegate/external_workflow/external_runs tool executors directly, exactly as
 // test/agent-contract.test.ts does. The selected external backend's child
 // (a real spawned CLI process, or, for --backend pi, a real in-process
 // nested Pi child against the caller's real settings.json version 5) is real.
@@ -582,7 +582,7 @@ async function buildDeterministicSession({ agentDir, cwd, sessionDir, subagentTi
   return {
     ctx,
     agentTool: session.getToolDefinition("external_delegate"),
-    workflowTool: session.getToolDefinition("workflow"),
+    workflowTool: session.getToolDefinition("external_workflow"),
     runsTool: session.getToolDefinition("external_runs"),
     dispose: () => {
       session.dispose();
@@ -622,7 +622,7 @@ async function runWorkflowMode({ workflowTool, ctx }, { role, harnessName, permi
     Array.isArray(returned) && returned.length === 2 && returned.every((value) => typeof value === "string" && value.trim() === expectedResult),
     `Workflow result did not exactly match expected ${JSON.stringify(expectedResult)}: ${JSON.stringify(returned)}`,
   );
-  const run = contractData(result, "workflow").run;
+  const run = contractData(result, "external_workflow").run;
   assert(run?.state?.outcome === "succeeded" && run.children?.count === 2 && run.children?.failed === 0, `Workflow receipt did not match its children: ${JSON.stringify(run)}`);
   const summaries = walk(evidenceDir).filter((file) => file.endsWith("summary.json"));
   assert(summaries.length === 2, `Expected 2 receipts, found ${summaries.length}`);

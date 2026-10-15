@@ -1,6 +1,6 @@
 {
   "name": "@tranhoangnguyen0310/pi-flow-external",
-  "version": "4.0.0-external.0",
+  "version": "5.0.0-external.0",
   "description": "External Claude Code, Codex CLI, Antigravity, Grok Build CLI, Muse Code, and OpenCode delegation for pi.",
   "type": "module",
   "main": "./index.ts",
@@ -21,6 +21,7 @@
     "docs/troubleshooting.md",
     "docs/migration-v4-to-v5.md",
     "docs/migration-agent-to-external-delegate.md",
+    "docs/migration-workflow-to-external-workflow.md",
     "docs/public-contract.md"
   ],
   "keywords": [

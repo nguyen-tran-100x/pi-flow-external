@@ -1,6 +1,6 @@
-# Public contract v1: external_delegate, workflow and external_runs
+# Public contract v1: external_delegate, external_workflow and external_runs
 
-`external_delegate`, `workflow` and `external_runs` declare `outputSchema` and return matching `structuredContent`. Human `content` and renderer `details` stay separate. Native Pi codemode receives the structured result, including failures. **Check `ok`**, not just whether the call threw.
+`external_delegate`, `external_workflow` and `external_runs` declare `outputSchema` and return matching `structuredContent`. Human `content` and renderer `details` stay separate. Native Pi codemode receives the structured result, including failures. **Check `ok`**, not just whether the call threw.
 
 ```js
 const receipt = await tools.external_delegate({ role: "worker", description: "Check build", prompt: "Run the build and report." });
@@ -23,7 +23,7 @@ Every result carries:
 | Tool | `action` | Success `data` | Failure `data` |
 |---|---|---|---|
 | `external_delegate` | `delegate` | `{run}` | `{run}`, or `{run: null}` before registration |
-| `workflow` | `run` | `{run}` | `{run}`, or `{run: null}` before registration |
+| `external_workflow` | `run` | `{run}` | `{run}`, or `{run: null}` before registration |
 | `external_runs` | the requested action | the action's payload (below) | `null` |
 
 A failure that has a run keeps that run's evidence. Read-only supervision never returns partial data on failure.

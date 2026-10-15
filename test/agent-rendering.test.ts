@@ -181,7 +181,7 @@ describe("delegation transparency rendering", () => {
   });
 
   it("states workflow access once and exposes terminal journal evidence on expansion", () => {
-    const tool = captureTools().find((candidate) => (candidate as RenderableTool & { name?: string }).name === "workflow")!;
+    const tool = captureTools().find((candidate) => (candidate as RenderableTool & { name?: string }).name === "external_workflow")!;
     const theme = makeMockTheme() as never;
 
     const call = tool.renderCall?.({ name: "architecture-review" }, theme, { cwd, executionStarted: true });
@@ -195,7 +195,12 @@ describe("delegation transparency rendering", () => {
       name: "architecture-review",
       status: "running",
       agentCount: 4,
-      phases: [],
+      phases: ["Check"],
+      currentPhase: "Check",
+      plannedPhases: [
+        { title: "Check", detail: "Claude reviews the architecture while Codex checks tests; no edits assigned." },
+        { title: "Combine", detail: "Compare the findings and return one prioritized report. API_KEY=synthetic-review-only" },
+      ],
       agents: [
         { index: 1, label: "map", status: "done" },
         { index: 2, label: "review", status: "running" },
@@ -214,6 +219,10 @@ describe("delegation transparency rendering", () => {
     expect(renderToText(call!)).toContain("Host access");
     expect(liveText).not.toContain("Host access");
     expect(liveText).toContain("1 done · 1 active · 1 queued · 1 failed / 4");
+    expect(liveText).toContain("Claude reviews the architecture while Codex checks tests; no edits assigned.");
+    expect(liveText).toContain("Combine planned");
+    expect(liveText).toContain("Compare the findings and return one prioritized report. API_KEY=[REDACTED]");
+    expect(liveText).not.toContain("synthetic-review-only");
     const background = tool.renderResult?.(
       { content: [], details: { ...live, runId: "wf_background", backgroundReceipt: true, launch: { description: "Saved workflow purpose", workspace: cwd } } },
       { expanded: false, isPartial: false }, theme, { cwd },
@@ -245,7 +254,9 @@ describe("delegation transparency rendering", () => {
     expect(receiptText).toContain("Workflow evidence wf_12345678");
     expect(receiptText).toContain("Journal /tmp/pi-flow-workflows/run-wf_12345678.jsonl");
     expect(receiptText).toContain("Architecture approved.");
-    expect(receiptText).toContain("2 agent(s) not shown");
+    expect(receiptText).toContain("Compare the findings and return one prioritized report. API_KEY=[REDACTED]");
+    expect(receiptText).not.toContain("synthetic-review-only");
+    expect(receiptText).toContain("2 more");
     expect(receiptText).toContain("/external runs");
   });
 });

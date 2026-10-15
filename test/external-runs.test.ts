@@ -699,6 +699,33 @@ describe("external_runs", () => {
     expect(failedFinal.details).toMatchObject({ runId: failedIdentity.runId, finalAvailable: false, status: "error" });
   });
 
+  it("retrieves the recorded workflow purpose and phase details while background work runs and after registry eviction", async () => {
+    const { execute, registry, runsDirectory } = setup(1);
+    const dir = getSessionWorkflowDir({ sessionManager: { getSessionDir: () => runsDirectory, getSessionId: () => "session-a" } })!;
+    const identity = createWorkflowRunIdentity("planned background script", null);
+    const launch = {
+      description: "Review without assigned edits, then combine findings",
+      plannedPhases: [{ title: "Review", detail: "Claude checks architecture while Codex checks tests." }],
+    };
+    const journal = await createWorkflowJournalWriter({ dir, identity, name: "planned-review", source: "inline", project: "/project", launch });
+    let finish!: (value: string) => void;
+    const handle = registry.start({
+      runId: identity.runId, kind: "workflow", sessionId: "session-a", project: "/project",
+      run: () => new Promise<string>((resolve) => { finish = resolve; }),
+      outcome: (result) => ({ status: "done", outcome: "succeeded", result }),
+    });
+    registry.update(identity.runId, { name: "planned-review", agents: [], launch });
+    const active = await execute({ action: "inspect", runIds: [identity.runId], view: "launch" });
+    expect(JSON.parse(active.content[0].text).launch).toEqual(launch);
+    finish("combined report");
+    await handle.result;
+    await journal.complete("combined report");
+    await registry.start({ runId: "run_plan_evictor", kind: "agent", sessionId: "session-a", project: "/project", run: async () => "done" }).result;
+    expect(registry.get(identity.runId)).toBeUndefined();
+    const historical = await execute({ action: "inspect", runIds: [identity.runId], view: "launch" });
+    expect(JSON.parse(historical.content[0].text).launch).toEqual(launch);
+  });
+
   it("returns a consistent nested task/state/timing/output shape for live and durable agent AND workflow batch entries alike, omitting a workflow's unbounded children", async () => {
     const { execute, registry, runsDirectory } = setup();
     const dir = getSessionWorkflowDir({ sessionManager: { getSessionDir: () => runsDirectory, getSessionId: () => "session-a" } })!;

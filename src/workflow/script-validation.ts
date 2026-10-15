@@ -231,6 +231,9 @@ function validateMeta(meta: unknown): asserts meta is WorkflowMeta {
       if (!phase || typeof phase !== "object" || typeof (phase as WorkflowMetaPhase).title !== "string") {
         throw new Error("each meta phase must have a title string");
       }
+      if (phase.detail !== undefined && typeof phase.detail !== "string") {
+        throw new Error("meta phase detail must be a string");
+      }
     }
   }
 }

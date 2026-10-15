@@ -1,7 +1,7 @@
 /**
  * A shared in-flight concurrency limiter (semaphore + FIFO wait-queue).
  *
- * One instance is shared across the `Agent` tool and the `workflow` tool so the
+ * One instance is shared across the `external_delegate` tool and the `external_workflow` tool so the
  * global cap bounds the total number of concurrent subagents across both entry
  * points — not per-tool.
  *
@@ -9,7 +9,7 @@
  * - `tryAcquire()` — synchronous, non-blocking. Returns a release fn if a slot
  *   is free, else `null`. Kept for direct semaphore-style callers/tests.
  * - `acquire(signal?)` — async. Resolves with a release fn when a slot frees.
- *   Used by both the `Agent` tool and workflow `agent()` calls so excess
+ *   Used by both the `external_delegate` tool and workflow `agent()` calls so excess
  *   subagents queue and drain under the shared cap. Honors an AbortSignal.
  *
  * Correctness / no over-subscription: `active` is incremented only on the fast

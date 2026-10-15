@@ -45,18 +45,18 @@ import { runRecordsDirectory } from "./retention.ts";
 import { createTimeoutSignal, markSubagentTimedOut } from "./timeout.ts";
 import type { PermissionResolution } from "./permissions.ts";
 import { effectivePiResourcePreset, isValidThinkingLevel, VALID_THINKING_LEVELS } from "../harnesses.ts";
-import { EXTERNAL_DELEGATE_TOOL } from "../tool-names.ts";
+import { EXTERNAL_DELEGATE_TOOL, EXTERNAL_WORKFLOW_TOOL } from "../tool-names.ts";
 
 /**
  * The delegation tools a spawned child must never receive, so subagents cannot
  * recursively fan out. Owned by the spawn core and used as the default exclude
  * list so no caller can accidentally under-specify the nesting block.
  */
-export const CHILD_EXCLUDED_TOOLS: readonly string[] = [EXTERNAL_DELEGATE_TOOL, "workflow"];
+export const CHILD_EXCLUDED_TOOLS: readonly string[] = [EXTERNAL_DELEGATE_TOOL, EXTERNAL_WORKFLOW_TOOL];
 
 /**
  * Parameters for a single subagent run. This is the shared spawn primitive used
- * by both the `Agent` tool and the `workflow` tool's `agent()` global.
+ * by both the `external_delegate` tool and the `external_workflow` tool's `agent()` global.
  * Concurrency accounting lives in the callers, not here; callers acquire a slot
  * before invoking spawnSubagent, so the runtime timeout below excludes queue time.
  */

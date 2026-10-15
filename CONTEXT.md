@@ -1,6 +1,6 @@
 # pi-flow external context
 
-This package is a fork of pi-flow whose `external_delegate` and `workflow` tools are reserved for external agent harness delegation.
+This package is a fork of pi-flow whose `external_delegate` and `external_workflow` tools are reserved for external agent harness delegation.
 
 ## Domain language
 
@@ -14,7 +14,7 @@ This package is a fork of pi-flow whose `external_delegate` and `workflow` tools
 - **Named Pi harness configuration:** A `pi-<label>` entry in settings v5 `harnesses`, defaulting to a `provider/model` id and a thinking policy, run in-process via Pi's own SDK rather than as a spawned CLI. `harness` selects *which* configuration; `backend` (always the literal `"pi"` for these) selects the execution mechanism. The six built-in roles are available on it immediately from the same canonical source as the six CLI harnesses, with zero generated files.
 - **Parent context:** An opt-in frozen text snapshot: `none` (default), `recent` with last N user turns including the current turn, or `full` available post-compaction conversation. It is background for a new external conversation, not a native session clone, system-prompt inheritance, or guaranteed cache reuse. Sharing excludes thinking and pending calls and cannot be combined with child `resume`. Workflow children share one invocation-time snapshot; prior child outputs remain explicit inputs.
 - **Workflow call:** Trusted JavaScript orchestration beginning with `meta.apiVersion: 1` that may fan out several explicit external `agent()` calls. Each child returns a value or throws a catchable `ChildRunError`; escaping child errors fail the workflow and drain siblings.
-- **Background run:** A validated, registered `external_delegate` or `workflow` invocation that returns a stable handle while work remains owned by the originating session. It is not a daemon or cross-session job.
+- **Execution mode:** Foreground is default, including parallel workflows: the original call waits for settlement and has a live card. Background returns a registered handle for useful independent work or an explicit user request; it changes neither permissions nor concurrency limits. The parent retains IDs and collects/checks results unless the user defers. There is no completion notification or wake-up. Interrupting wait only stops waiting; explicit cancel stops work. Keep the owning session open: orderly shutdown requests cancellation, restart never adopts work. It is not a daemon or cross-session job.
 - **Run supervision:** `external_runs` list/inspect/wait/cancel over stable IDs. Wait observes selected terminal outcomes without cancelling pending work; output and diagnostics use opaque cursors.
 - **Delegation intent:** The backend, resolved identity, task label, role purpose, and workspace shown to the user before and during direct execution.
 - **Access disclosure:** A visible statement of effective external CLI access and the external-host boundary; it does not create a sandbox or read-only guarantee.
@@ -27,9 +27,9 @@ This package is a fork of pi-flow whose `external_delegate` and `workflow` tools
 
 ## Selection
 
-Claude Code, Codex CLI, Antigravity, Grok Build CLI, Muse Code, OpenCode, and registered named Pi harnesses are selected through this extension's `external_delegate` or `workflow`. A role is the work. A harness is the execution environment. Pi's native subagent files stay outside the catalog and are not modified.
+Claude Code, Codex CLI, Antigravity, Grok Build CLI, Muse Code, OpenCode, and registered named Pi harnesses are selected through this extension's `external_delegate` or `external_workflow`. A role is the work. A harness is the execution environment. Pi's native subagent files stay outside the catalog and are not modified.
 
-The ordinary driver sees `external_delegate`, optional `workflow`, and read-only `external_help`. `pi_flow_role_create` is activated only by `/external config role assist`. `pi_flow_harness_create` is activated only by `/external config harness assist`. External children start in the requested working directory, but backend-native nested helpers may create or use a separate workspace; prompts that request further nesting should include explicit absolute paths and all required context. Named Pi harness children are the one exception to "backend-native nested helpers may use a different workspace": a pi child runs in-process with no extensions, prompt templates, or themes loaded. The registration preset chooses skills: `minimal` leaves them unloaded, and `skills` loads installed skills, including project skills only when the project is trusted. Extensions stay unloaded, so the child still cannot launch a further nested agent through an extension.
+The ordinary driver sees `external_delegate`, optional `external_workflow`, and read-only `external_help`. `pi_flow_role_create` is activated only by `/external config role assist`. `pi_flow_harness_create` is activated only by `/external config harness assist`. External children start in the requested working directory, but backend-native nested helpers may create or use a separate workspace; prompts that request further nesting should include explicit absolute paths and all required context. Named Pi harness children are the one exception to "backend-native nested helpers may use a different workspace": a pi child runs in-process with no extensions, prompt templates, or themes loaded. The registration preset chooses skills: `minimal` leaves them unloaded, and `skills` loads installed skills, including project skills only when the project is trusted. Extensions stay unloaded, so the child still cannot launch a further nested agent through an extension.
 
 ## User control surface
 
