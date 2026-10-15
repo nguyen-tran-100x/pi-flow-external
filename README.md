@@ -24,7 +24,7 @@ You ask Pi to delegate work in plain chat. Every delegation combines three eleme
 
 > ⚠️ **Security &amp; Defaults:**
 > Roles describe **intent**; `permission` defines **authority**. Saying "read-only" in prompt text does not restrict an agent.
-> Out of the box, the default harness is `agy` and the default permission is `danger` (full host access). Antigravity rejects `readonly` and `edit`. For enforced sandboxing, ask for a harness that supports it (such as `claude` or `codex`) and explicit read-only access.
+> Out of the box, the default harness is `agy` and the default permission is `danger` (full host access). Antigravity rejects `readonly` and `edit`. For restricted access, request a supported permission tier explicitly. Claude uses native tool restrictions; Codex uses an OS sandbox. See the permission matrix below.
 
 ---
 
@@ -71,7 +71,7 @@ Pi recognizes the request and delegates:
 
 - **Role:** `explorer`
 - **Harness:** `claude`
-- **Permission:** `readonly` (enforced sandbox: Claude cannot edit files or run shell commands)
+- **Permission:** `readonly` (native tool restrictions: Claude cannot edit files or run shell commands; not an OS sandbox)
 
 *(Programmatic / Codemode equivalent):*
 
@@ -140,34 +140,27 @@ await tools.external_delegate({
 });
 ```
 
-### 2. Background Runs &amp; Supervision
+### 2. Foreground or Background?
 
-For long audits or explorations you don't want to wait for:
+**Use foreground when you need the result next.** Use background when useful independent work can proceed, or you explicitly want to collect the result later. A long task alone does not need background mode.
 
-> **You:** "Have Claude run a security audit of our API routes in the background while we continue working."
+Both `external_delegate` and `external_workflow` support these modes:
 
-Pi launches the run in the background, gives you a run ID, and keeps your chat session free.
+| | Foreground (default) | Background (`background: true`) |
+|---|---|---|
+| Original call returns | When the work finishes or fails | After registration, with a run ID; work may already have finished |
+| Progress | Live execution card | A static launch receipt; inspect with `/external runs` or ask Pi for status |
+| Next step | Pi checks the returned outcome | Pi keeps the run ID, does independent work, then collects and checks the outcome |
 
-- Check live progress or inspect output anytime with `/external runs`.
-- Or ask Pi: *"How is that background security audit going?"*
+> **You:** "Have Claude audit the API in the background while we review the release checklist. Then bring me the findings."
 
-*(Codemode):*
+- **No automatic completion message:** background work does not notify or wake the parent. Pi owns collection unless you explicitly ask it to defer; you should not have to manage every run yourself.
+- **Keep Pi open:** background work belongs to its originating session, not a persistent service. Orderly shutdown requests cancellation with bounded cleanup; restart does not adopt unfinished work.
+- **Stopping is different from waiting:** interrupting the original foreground call cancels it. Interrupting `external_runs wait` only stops waiting; use `/external runs` or `external_runs cancel` to stop background work.
 
-```ts
-const receipt = await tools.external_delegate({
-  description: "Audit security-sensitive endpoints",
-  role: "reviewer",
-  harness: "claude",
-  permission: "readonly",
-  prompt: "Audit security-sensitive endpoints.",
-  background: true,
-});
+Both modes allow parallel workflow children under the same concurrency limit. Background does not change permissions, enforce new budget limits, or make work inherently faster or cheaper. Prompt instructions such as “do not edit” express intent; the supported `permission` tier defines enforced restrictions.
 
-if (receipt.ok) {
-  const runId = receipt.data.run.runId;
-  await tools.external_runs({ action: "wait", runIds: [runId], mode: "all" });
-}
-```
+See [launch → independent work → collect](docs/supervision-and-runtime.md#background-example-launch--independent-work--collect) for the operational example, result handling, and cancellation details.
 
 ### 3. Multi-Agent Workflows (Parallel Delegation)
 
@@ -175,13 +168,17 @@ For tasks that benefit from multiple perspectives at once:
 
 > **You:** "Run a parallel review: have Claude check for architectural issues while Codex audits test coverage."
 
-Pi runs a trusted JavaScript workflow that runs both subagents simultaneously under a shared concurrency limiter:
+Pi first explains who will do what, what runs in parallel, what may change, and the expected result. It then uses `external_workflow` to run both subagents under a shared concurrency limiter. The live card shows the roadmap and actual child activity; `/external runs` provides inspection and cancellation.
 
 *(Workflow script):*
 
 ```js
-export const meta = { apiVersion: 1, name: "code-review", description: "Parallel review" };
+export const meta = {
+  apiVersion: 1, name: "code-review", description: "Parallel review",
+  phases: [{ title: "Review", detail: "Claude checks architecture while Codex checks test coverage; both use readonly access." }],
+};
 
+phase("Review");
 const [arch, coverage] = await parallel([
   () => agent("Review architectural integrity read-only", { role: "reviewer", harness: "claude", permission: "readonly" }),
   () => agent("Audit test coverage read-only", { role: "qa", harness: "codex", permission: "readonly" }),
@@ -227,6 +224,7 @@ The direct delegation tool `Agent` is now `external_delegate`, with no alias. Up
 - **[Harness Reference](docs/harness-reference.md):** Deep CLI flags, OpenCode 2 standalone server details, Muse session resume, Grok sandbox notes, and Pi in-process presets.
 - **[Configuration Reference](docs/configuration-reference.md):** Settings v5 JSON schema, sparse inheritance, role overrides, and full command reference.
 - **[Supervision &amp; Runtime](docs/supervision-and-runtime.md):** `external_runs` actions, cursor pagination, batch inspect, and byte budgets.
-- **[Workflows](docs/workflows.md):** Scripting API, error handling (`ChildRunError`), and replay cache.
+- **[Workflows](docs/workflows.md):** `external_workflow`, plain-language plans, live phases, error handling (`ChildRunError`), and replay cache.
+- **[Workflow Tool Rename](docs/migration-workflow-to-external-workflow.md):** `workflow` → `external_workflow`, with no alias.
 - **[Public Contract](docs/public-contract.md):** Contract envelope definitions for Pi codemode consumers.
 - **[Troubleshooting](docs/troubleshooting.md):** Common errors, authentication checks, and `pi-cc-extensions` renderer compatibility.

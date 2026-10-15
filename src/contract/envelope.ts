@@ -25,7 +25,7 @@ export function contractEnvelope<S extends TSchema, F extends TSchema>(tool: str
   return Type.Union([successVariant(tool, action, success), failureVariant(tool, action, failure)]);
 }
 
-/** Builds one envelope as plain JSON. `redact` re-redacts the whole envelope (Agent and workflow receipts). */
+/** Builds one envelope as plain JSON. `redact` re-redacts the whole envelope (external_delegate and external_workflow receipts). */
 export function envelope({ tool, action, data, warnings = [], error, redact = false }: {
   tool: string;
   action: string;

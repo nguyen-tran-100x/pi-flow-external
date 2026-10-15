@@ -20,8 +20,9 @@ import { runRecordsDirectory } from "../core/retention.ts";
 import { captureParentContext } from "../core/parent-context.ts";
 import { RunRegistry, type RegisteredRunHandle } from "../core/run-registry.ts";
 import { ExpectedFlowError, type FlowErrorCode } from "../core/errors.ts";
-import { withContract } from "../contract/envelope.ts";
+import { redactedText, withContract } from "../contract/envelope.ts";
 import { workflowOutputSchema, workflowReceipt } from "../contract/workflow.ts";
+import { EXTERNAL_WORKFLOW_TOOL } from "../tool-names.ts";
 import { loadWorkflowJournal } from "./journal.ts";
 import { OUTPUT_PREVIEW_CHARS } from "../core/progress.ts";
 import { loadExternalCatalog, resolveExternalProfile, selectorHarness, unknownExternalProfileMessage } from "../profiles.ts";
@@ -135,14 +136,14 @@ export function createWorkflowTool(
   options: CreateWorkflowToolOptions,
 ): ToolDefinition<typeof workflowToolParameters, WorkflowToolDetails> {
   return defineTool({
-    name: "workflow",
-    label: "Workflow",
-    description: "Run a saved, persisted, or ad-hoc trusted JavaScript workflow that orchestrates external roles.",
+    name: EXTERNAL_WORKFLOW_TOOL,
+    label: EXTERNAL_WORKFLOW_TOOL,
+    description: "Run a saved, persisted, or ad-hoc trusted JavaScript workflow that orchestrates external roles. Before launch, explain purpose, assignments, parallel/sequential order, allowed changes, and deliverable in plain language.",
     promptSnippet: WORKFLOW_PROMPT_SNIPPET,
     parameters: workflowToolParameters,
     outputSchema: workflowOutputSchema,
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      return await withContract<WorkflowToolDetails>({ tool: "workflow", action: "run", failureData: { run: null }, redact: true }, async () => {
+      return await withContract<WorkflowToolDetails>({ tool: EXTERNAL_WORKFLOW_TOOL, action: "run", failureData: { run: null }, redact: true }, async () => {
       const parentMessages = captureParentContext(ctx.sessionManager);
       const sessionId = ctx.sessionManager?.getSessionId?.() ?? `unpersisted:${toolCallId}`;
       const sessionVersion = options.registry.sessionVersion(sessionId);
@@ -783,6 +784,8 @@ function renderPhaseTree(container: Container, details: WorkflowToolDetails, the
         0,
       ),
     );
+    const detail = details.plannedPhases?.find((planned) => planned.title === phase)?.detail;
+    if (detail) container.addChild(new Text(`    ${theme.fg("muted", redactedText(detail))}`, 0, 0));
     const shown = selectAgentsForRender(agents);
     for (const agent of shown) {
       container.addChild(renderSubagentNode(agent, theme, frame, runningCount, "    ", Date.now(), expanded, false));

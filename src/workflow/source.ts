@@ -20,13 +20,14 @@ import type { WorkflowCachedAgentResult, WorkflowMetaPhase } from "./types.ts";
 
 export const workflowToolParameters = Type.Object({
   background: Type.Optional(Type.Boolean({
-    description: "Return a stable workflow handle after registration while session-owned execution continues. Defaults to false.",
+    description: "Defaults to false: wait for settlement. True returns a stable session-owned workflow handle after registration; work may already be settled. Use for independent work or an explicit background request. Retain the ID and collect with external_runs; no completion notification. Keep the owning session open.",
   })),
   script: Type.Optional(
     Type.String({
       description: [
         "Raw JavaScript workflow script (no Markdown fences) for an ad-hoc workflow.",
         "First statement: export const meta = { apiVersion: 1, name: 'short_name', description: 'non-empty' }.",
+        "Explain the plan in plain language before launch. Add meta.phases: [{ title, detail }] for the roadmap and call phase(title) at actual transitions.",
         "Use agent(prompt, opts), parallel(thunks), pipeline(items, ...stages), phase(title), log(message), args, cwd. Must call agent() at least once and return a JSON-serializable value. Results are canonicalized to JSON; non-plain objects are rejected.",
         "Provide exactly one of `script`, `name`, or `scriptPath`.",
       ].join(" "),

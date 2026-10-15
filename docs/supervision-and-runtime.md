@@ -31,35 +31,78 @@ Workspace /path/to/project
 
 ---
 
-## Background Runs & Lifecycle
+## Foreground, Background & Lifecycle
 
-By default, calls to `external_delegate` and `workflow` are blocking: the caller waits until the child process completes.
+**Foreground is the default:** omit `background` or set it to `false`. The original `external_delegate` or `external_workflow` call waits for settlement and returns the result or failure. Its live card carries progress while the parent waits.
 
-Setting `background: true` queues and starts the work asynchronously while returning an immediate receipt containing a stable handle:
+**Background returns a handle:** set `background: true` when the parent has useful independent work before collection, or the user explicitly requests background execution. The receipt confirms registration, not completion; a fast run may already be settled. The launch receipt is not a live monitor. Use `/external runs` to browse, or `external_runs` to inspect, wait, or cancel.
 
-```ts
-const receipt = await tools.external_delegate({
-  description: "Audit security-sensitive endpoints",
-  role: "reviewer",
-  harness: "claude",
-  permission: "readonly",
-  prompt: "Audit security-sensitive endpoints.",
+Use foreground when the result is needed next—even for a long workflow or parallel children. Do not routinely launch background then immediately wait. Both modes support `parallel()` under the same concurrency limiter; neither changes permission boundaries or budget enforcement. Prompt instructions express intent, not an enforced restriction.
+
+### Background Example: Launch → Independent Work → Collect
+
+Before launch, tell the user: “Claude will audit the API with readonly permission. While it runs, I’ll read the release checklist, then compare the findings.” For a workflow, also explain assignments and ordering as described in [Workflows](workflows.md#explain-the-plan-before-launch).
+
+This codemode example assumes both paths exist; replace them with your project's absolute paths. It uses `external_delegate`, but collection is the same for `external_workflow` and its `wf_...` ID.
+
+```js
+const launched = await tools.external_delegate({
+  description: "Audit API routes",
+  role: "reviewer", harness: "claude", permission: "readonly",
+  prompt: "Audit /absolute/project/api for security defects. Do not edit files.",
   background: true,
 });
+if (!launched.ok) throw new Error(launched.error.message);
+let run = launched.data.run; // Retain this handle and its runId.
 
-if (!receipt.ok) {
-  throw new Error(`Failed to launch: ${receipt.error.message}`);
+// Useful independent work, not an immediate wait:
+const checklist = await tools.read({ path: "/absolute/project/RELEASE.md" });
+
+if (!run.state.outcome) {
+  const waited = await tools.external_runs({
+    action: "wait", runIds: [run.runId], mode: "all",
+  });
+  if (!waited.ok) throw new Error(waited.error.message);
+  const settled = waited.data.completed.find(item => item.runId === run.runId);
+  if (!settled) return { pending: waited.data.pending, checklist };
+  run = settled;
 }
 
-const runId = receipt.data.run.runId; // e.g. "run_..."
+if (run.state.outcome === "succeeded" && run.output.delivery === "inline") {
+  return { run, result: run.output.value, checklist }; // null/false/0 are valid.
+}
+
+const view = run.state.outcome === "succeeded" ? "final" : "diagnostics";
+let cursor;
+let text = "";
+let encoding;
+do {
+  const inspected = await tools.external_runs({
+    action: "inspect", runIds: [run.runId], view, ...(cursor ? { cursor } : {}),
+  });
+  if (!inspected.ok) throw new Error(inspected.error.message);
+  if (view === "final" && !inspected.data.finalAvailable) {
+    throw new Error("No verified final answer is available");
+  }
+  text += inspected.data.page.text;
+  encoding = inspected.data.page.encoding;
+  cursor = inspected.data.page.nextCursor;
+} while (cursor);
+return { run, view, encoding, text, checklist };
 ```
 
-Background runs do not notify or resume this session when they finish. Collect them with `external_runs`: `wait`, then `inspect` with view `final` for a successful answer. For a failed run, read the `wait` outcome and `inspect` view `diagnostics`.
+- **Check the run, not just `ok`.** `wait.ok` means supervision worked, even if a child failed. Read each `completed[i].state.outcome` and all `pending` IDs. With multiple targets, a failed workflow can return early even in `mode: "all"`; pending work continues. Keep collecting it unless the user defers, or cancel it explicitly.
+- **Avoid redundant calls.** If settlement is already known, inspect directly rather than wait again. Successful inline output needs no second fetch. A successful workflow can still have `children.failed` when the script handled child errors; check the returned reports.
+- **Read every page.** Otherwise use `final` for verified success or `diagnostics`/`output` for failure. `final` is empty without verified success. Follow `page.nextCursor`, concatenate text, and only then parse if `encoding` is `json`. Workflow final JSON wraps the value in `{ runId, result, finalAvailable }`; agent finals are text.
+- **Keep ownership.** The parent retains IDs and collects/checks results unless the user explicitly defers collection. A script's local variables do not survive a separate codemode call; pass the retained handle or ID explicitly. If independent work or collection fails, report any still-running IDs rather than abandoning them silently. Never retry a child automatically.
 
-### Ownership Invariants
-- **Session-Owned:** Background children belong to the active Pi session, not a persistent OS daemon.
-- **Orderly Shutdown:** Closing Pi gracefully signals cancellation and waits for bounded cleanup.
-- **Unconfirmed Exits:** Host crashes or force-kills leave unfinished evidence marked `interrupted_or_uncertain`. A restarted session never re-attaches to live orphan processes.
+### Interruption, Cancellation & Session Ownership
+
+- **Foreground interruption:** interrupting the original blocking call cancels that work.
+- **Wait interruption:** interrupting `external_runs wait` only stops waiting; it does not cancel the selected runs. Use `external_runs cancel` to stop background work. Cancellation requests are not proof of completed cleanup; check settlement.
+- **Workflow cancellation:** cancelling the root stops its active children. Cancelling one child throws a catchable child error; a script that handles it may continue.
+- **No automatic delivery:** background completion does not notify, wake, or resume the parent. Ending a turn is not the same as closing the session; work can continue between turns in the owning session.
+- **Not a persistent service:** keep the owning Pi session open. Orderly shutdown requests cancellation and waits for bounded cleanup. Crashes or force-kills leave unfinished evidence `interrupted_or_uncertain`; restarting Pi never adopts live orphan work.
 
 ---
 
@@ -110,10 +153,11 @@ Block until one or more targets reach terminal state:
 const waitResult = await external_runs({
   action: "wait",
   runIds: [runId1, runId2],
-  mode: "all", // "all" waits for every run; "any" returns after the first settles
+  mode: "all", // A failed workflow can return early; always check data.pending.
   limitBytes: 32768,
 });
 ```
+- **Wait Modes:** `any` returns after a selected target settles; `all` waits for all, except an unsuccessful workflow returns early. Check `completed` outcomes and `pending` IDs; `ok: true` does not mean every run succeeded.
 - **Live Progress Heartbeat:** While waiting, the tool emits bounded progress updates (watched targets, completed/pending counts, recent activity) through Pi's update channel.
 - **Shared Budget:** The `limitBytes` cap is spent across settled results in requested order. If a result exceeds remaining space, it returns `resultTruncated: true` with references to inspect the rest.
 
@@ -131,7 +175,7 @@ await external_runs({
 
 ## Operational Evidence & Run Storage
 
-Every normal run writes durable, private evidence to disk:
+Normal runs write private, best-effort evidence to disk; unavailable storage does not discard a settled in-memory result:
 
 ```text
 ~/.pi/agent/pi-flow-external/runs/<run-id>/

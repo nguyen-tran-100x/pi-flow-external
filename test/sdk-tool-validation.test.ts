@@ -116,7 +116,7 @@ describe("SDK tool validation and downstream placeholder compatibility (#62)", (
       expect(validated).toEqual({ topic: "workflow", harness: "" });
 
       const res = await tool.execute("call-help-empty", validated, undefined, undefined, ctx);
-      expect(res.content[0].text).toContain("The workflow tool is enabled");
+      expect(res.content[0].text).toContain("The external_workflow tool is enabled");
       expect(res.details).toEqual({ topic: "workflow" });
     });
 
@@ -130,7 +130,7 @@ describe("SDK tool validation and downstream placeholder compatibility (#62)", (
       };
       const validated = validateToolArguments(tool, toolCall);
       const res = await tool.execute("call-help-claude", validated, undefined, undefined, ctx);
-      expect(res.content[0].text).toContain("The workflow tool is enabled");
+      expect(res.content[0].text).toContain("The external_workflow tool is enabled");
       expect(res.content[0].text).toContain('Workflows orchestrate across multiple harnesses (including "claude")');
       expect(res.details).toEqual({ topic: "workflow", harness: "claude" });
     });
@@ -150,13 +150,13 @@ describe("SDK tool validation and downstream placeholder compatibility (#62)", (
   describe("workflow tool source selectors", () => {
     it("validates and resolves inline script when empty string placeholders are provided", async () => {
       const dummyTool = {
-        name: "workflow",
+        name: "external_workflow",
         parameters: workflowToolParameters,
       } as any;
       const toolCall = {
         type: "toolCall" as const,
         id: "call-wf",
-        name: "workflow",
+        name: "external_workflow",
         arguments: {
           script: "export const meta = { apiVersion: 1, name: 'sdk_test', description: 'Testing SDK' }; return await agent('hi');",
           name: "",

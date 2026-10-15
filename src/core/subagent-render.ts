@@ -17,8 +17,8 @@ export const RICH_SUBAGENT_ACTIVE_LIMIT = 4;
  * initializes (`initTheme()`); a headless/RPC render, an uninitialized test
  * harness, or any other caller without that startup step must still produce
  * a readable row instead of crashing the tool card. This is the single
- * shared "render a result body" primitive for `Agent` (subagent-render.ts),
- * `workflow` (its own final-output block), and `external_runs`'s output/
+ * shared "render a result body" primitive for `external_delegate` (subagent-render.ts),
+ * `external_workflow` (its own final-output block), and `external_runs`'s output/
  * final views — the last mile of the shared-rendering fix for issue #52's
  * "still plain Text for output rather than rendered Markdown" gap.
  */

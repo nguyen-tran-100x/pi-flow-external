@@ -76,7 +76,7 @@ export const agentToolParameters = Type.Object({
     description: "The task briefing to send to the subagent.",
   }),
   background: Type.Optional(Type.Boolean({
-    description: "Return a stable run handle after registration while the session-owned child continues. Defaults to false.",
+    description: "Defaults to false: wait for settlement. True returns a stable session-owned run handle after registration; work may already be settled. Use for independent work or an explicit background request. Retain the ID and collect with external_runs; no completion notification. Keep the owning session open.",
   })),
   role: Type.Optional(Type.String({
     minLength: 1,

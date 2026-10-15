@@ -203,8 +203,8 @@ describe("external_help usage playbook", () => {
     expect(validateToolArguments(runsTool, toolCall("external_runs", USAGE_RUNS_FINAL))).toEqual(USAGE_RUNS_FINAL);
 
     const script = usageWorkflowScript();
-    const workflowTool = { name: "workflow", parameters: workflowToolParameters } as any;
-    expect(validateToolArguments(workflowTool, toolCall("workflow", { script })).script).toBe(script);
+    const workflowTool = { name: "external_workflow", parameters: workflowToolParameters } as any;
+    expect(validateToolArguments(workflowTool, toolCall("external_workflow", { script })).script).toBe(script);
     expect(parseWorkflowScript(script).meta).toMatchObject({ apiVersion: 1, name: "parallel-review" });
     for (const call of USAGE_WORKFLOW_CALLS) {
       const normalized = normalizeAgentOptions(call.options);

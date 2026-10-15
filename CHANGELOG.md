@@ -2,6 +2,22 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.0.0-external.0] - 2026-10-15
+
+### Breaking
+- Renamed the orchestration tool **`workflow` → `external_workflow`**, following PR #86's direct-tool rename precedent. There is no alias or automatic translation. Update `tools.workflow(...)` → `tools.external_workflow(...)`, `describeTool("workflow")` → `describeTool("external_workflow")`, exact-name hooks, tool allow-lists, and receipt checks. A stale call may reach another extension's `workflow` tool rather than fail.
+- New workflow receipts report `tool: "external_workflow"`. Envelope `contractVersion: 1`, `action: "run"`, run `kind: "workflow"`, `wf_...` IDs, saved scripts, and script helpers such as `agent()` remain unchanged. Settings stay at version 5; no conversion or saved-run rewrite is required. Help topic `workflow`, extension option `{ workflow: false }`, and E2E `--workflow` are unchanged.
+- Update Flow's `pi-cc-extensions` `excludeRenderers` entry from `"workflow"` to `"external_workflow"` (alongside `"external_delegate"` and `"external_runs"`), preserve unrelated entries, and restart Pi. See the [workflow tool migration guide](docs/migration-workflow-to-external-workflow.md).
+
+### Changed
+- Parent guidance requires a plain-language pre-launch briefing covering purpose, assignments, parallel/sequential order, allowed changes, and deliverable, with the same roadmap in `meta.phases` and actual transitions marked by `phase()`. This follows the user's existing approval policy; it is not a runtime-verified chat-message gate.
+- Workflow cards now display existing planned-phase details, including future stages. Help and examples explain the roadmap, actual progress, and explicit launch inspection for retrieving recorded plans during background runs and after completion. Phases remain optional for existing saved scripts; declared intent is not proof of execution.
+
+- Foreground/background guidance now puts the selection rule and ownership up front: foreground also supports parallel work; background is for independent work or an explicit request, has no automatic completion delivery, and requires collection in the owning session. The runtime guide includes outcome-aware, paged collection instead of teaching immediate background-then-wait. Permission descriptions distinguish native tool restrictions from OS sandboxing.
+
+### Fixed
+- Phase explanations use the existing secret redaction before display, and supplied phase details must be strings rather than silently rendering malformed values.
+
 ## [4.0.0-external.0] - 2026-10-13
 
 ### Breaking

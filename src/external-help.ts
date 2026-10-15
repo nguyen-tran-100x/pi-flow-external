@@ -90,33 +90,37 @@ function validateHarnessFilter(harness: string | undefined, configuredPiHarnesse
 }
 
 function workflowHelp(workflowsEnabled: boolean, workflows: ReturnType<typeof listSavedWorkflows>): string {
-  const availability = workflowsEnabled ? "The workflow tool is enabled." : "The workflow tool is disabled for this extension instance.";
+  const availability = workflowsEnabled ? "The external_workflow tool is enabled." : "The external_workflow tool is disabled for this extension instance.";
   return `${availability} It runs trusted JavaScript, not a sandbox.
 
 Provide exactly one workflow source: name, scriptPath, or script. Every script starts with the literal current declaration export const meta = { apiVersion: 1, name, description }, calls agent() at least once, awaits every started call, and returns JSON-serializable data. Missing/unsupported API versions fail before any child launches. Project .pi/workflows are visible only when the project is trusted.
 
+Before calling external_workflow, explain the purpose, assignments, parallel/sequential order, allowed changes, and deliverable in plain language. Add the same roadmap as meta.phases: [{ title: "Review", detail: "Who checks what and whether files may change" }, ...], and call phase("Review") when that stage actually starts. Planned phases and details remain visible on the live card; they describe intent, while child states/activity show observed execution. Explain material plan changes and follow the user's existing approval policy. The briefing is an agent instruction, not a runtime-verified chat message; phases remain optional for existing saved scripts. Use external_runs inspect view launch to retrieve the recorded purpose and plan (also includes sensitive script/args); background receipts are not live monitors.
+
 APIs: agent(prompt, { description, label, role, harness, subagent_type, permission, max_budget_usd, resume, context, schema, phase }); parallel(thunks); pipeline(items, ...stages); phase(title); log(message). Globals: args and cwd. Agent options other than the profile selector are optional. "description" is the common task-name option shared with the direct external_delegate tool; "label" is a compatible alias — set only one, or both to the same value. Choose role/harness or legacy exact subagent_type, never both. Use unique descriptions/labels and clear task prompts. An agent() succeeds with its value or throws ChildRunError { runId, outcome, message, outputRef, diagnosticsRef }; catch optional failures explicitly. Uncaught failures terminate the workflow and drain siblings. Helpers never convert failures to null. Context options: {mode:"none"} (default), {mode:"recent",turns:N} (positive integer, includes current user turn), or {mode:"full"} (available context after compaction). All children share invocation-time context/settings; earlier child results must still be passed explicitly. Context excludes thinking/system instructions and pending calls; images and snapshots over 1 MiB fail without truncation. Context sharing cannot be combined with resume. Use schema for results that control branching or aggregation. Imports, filesystem globals, Date APIs, and Math.random() are unavailable.
 
-Background and supervision: blocking by default — an ordinary call waits for its child and returns the result, run everything this way unless the parent has other work to do first. Set background:true only when the parent can proceed before completion, then use external_runs on the returned stable run ID while session-owned work continues. Background runs do not notify or resume this session; collect them with external_runs (wait, then inspect with view final). Check failed outcomes and diagnostics; view final only supplies verified successful answers. Parallel same-harness work (e.g. three agy workers) runs concurrently under the shared maxConcurrentSubagents cap: call parallel([() => agent(...), ...]) in a workflow, or issue separate external_delegate calls with background:true in one turn, then external_runs wait/inspect/cancel. Awaiting agent() calls sequentially stays serial by construction. external_runs selects targets with runIds. list takes optional workflowRunId, cursor, workflowCursor, and limit. inspect with one id reads any view (summary, output, diagnostics, or final) and pages with an opaque cursor and limitBytes; several ids (up to 20) batch summary only. wait takes runIds in mode any or all (up to 100). cancel takes one id and an optional reason. Follow nextCursor/nextWorkflowCursor for complete results. Wait returns selected terminal outcomes and pending IDs, never cancels pending work, and returns an unsuccessful workflow early; interrupting wait stops only the wait. Cancelling a workflow stops active children, while cancelling one child is a catchable workflow error. Blocking-call interruption cancels that call; background work survives tool return but is cancelled on orderly owning-session shutdown. It is not a daemon: crashes leave unfinished evidence interrupted/uncertain, restart does not adopt work, and live steering is unavailable.
+Execution mode: foreground is blocking by default, including parallel workflows. Use background:true only for useful independent work before collection or an explicit user request; do not routinely launch background then immediately wait. Both modes support parallel([() => agent(...), ...]) under the same maxConcurrentSubagents cap; sequential awaits stay serial. Background changes neither permissions nor budget enforcement. Its stable handle means accepted, not completed; the receipt is not a live monitor. Retain the ID and own collection unless the user explicitly defers it. No completion notification wakes this session. Keep the session open: orderly shutdown requests cancellation with bounded cleanup; crashes leave uncertain evidence and restart does not adopt work. Topic usage contains the worked collection guidance.
+
+Supervision: external_runs selects targets with runIds. list takes optional workflowRunId, cursor, workflowCursor, and limit. inspect with one id reads summary/output/diagnostics/final/launch and pages with cursor and limitBytes; several ids (up to 20) batch summary only. wait takes up to 100 runIds in mode any or all; check ok for the operation, then each completed run's outcome and pending IDs. It never cancels pending work and can return early on a failed workflow even in all mode. If settlement is already known, skip wait. Use inline successful output when available; otherwise inspect final and follow nextCursor. Failures need diagnostics/output, not final. Follow nextWorkflowCursor for workflow listings too. Foreground-call interruption cancels that call; interrupting wait only stops waiting. Use cancel with one id and an optional reason to stop background work. Cancelling a workflow stops active children; cancelling one child is a catchable workflow error. There is no live steering.
 
 Replay: resumeFromRunId works only with persisted scriptPath and starts an explicit new attempt. It reuses the longest unchanged prefix of successful child calls; the first changed/failed/cancelled/timed-out call and its suffix run again. Script recomposition is cheap, but child reruns can cost money or repeat side effects. There is no automatic repaired-script replay.
 
-Background is a workflow tool call parameter ({ script, background: true }), never a meta field — meta.background is silently ignored and does not run the workflow in the background.
+Background is an external_workflow tool call parameter ({ script, background: true }), never a meta field — meta.background is silently ignored and does not run the workflow in the background.
 
-Background example (same script as below; call the workflow tool with background:true):
-export const meta = { apiVersion: 1, name: "review", description: "Map and review a repository" };
+Example (blocking by default; pass background:true on the external_workflow call only when the parent has other work):
+export const meta = {
+  apiVersion: 1, name: "review", description: "Map and review a repository",
+  phases: [
+    { title: "Check", detail: "The default harness maps the repository while Codex reviews it; neither is assigned edits." },
+    { title: "Collect", detail: "Return both reports for the parent to compare." },
+  ],
+};
+phase("Check");
 const [map, review] = await parallel([
   () => agent("Map /absolute/repo read-only.", { label: "map", role: "explorer" }),
   () => agent("Review /absolute/repo read-only.", { label: "review", role: "reviewer", harness: "codex" }),
 ]);
-return { map, review };
-
-Foreground example:
-export const meta = { apiVersion: 1, name: "review", description: "Map and review a repository" };
-const [map, review] = await parallel([
-  () => agent("Map /absolute/repo read-only.", { label: "map", role: "explorer" }),
-  () => agent("Review /absolute/repo read-only.", { label: "review", role: "reviewer", harness: "codex" }),
-]);
+phase("Collect");
 return { map, review };
 
 ${formatSavedWorkflows(workflows)}`;

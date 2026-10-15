@@ -20,7 +20,7 @@ import { loadSavedWorkflowRegistry, loadWorkflowScriptPath } from "../src/workfl
 import { createWorkflowTool, toWorkflowSubagentDescriptor } from "../src/workflow/tool.ts";
 import { workflowOutputSchema } from "../src/contract/workflow.ts";
 import { Value } from "typebox/value";
-import { createWorkflowJournalWriter, createWorkflowRunIdentity, loadWorkflowJournal } from "../src/workflow/journal.ts";
+import { createWorkflowJournalWriter, createWorkflowRunIdentity, getSessionWorkflowDir, loadWorkflowJournal } from "../src/workflow/journal.ts";
 import { prepareWorkflowToolSource } from "../src/workflow/source.ts";
 import { createStructuredOutputTool, type StructuredOutputCapture } from "../src/workflow/structured-output.ts";
 import { loadExternalCatalog, resolveExternalProfile } from "../src/profiles.ts";
@@ -62,6 +62,16 @@ describe("parseWorkflowScript", () => {
   it("requires non-empty name and description", () => {
     expect(() => parseWorkflowScript("export const meta = { apiVersion: 1, name: 'x' };\n")).toThrow(/description/);
     expect(() => parseWorkflowScript("export const meta = { apiVersion: 1, description: 'y' };\n")).toThrow(/name/);
+  });
+
+  it("accepts optional string phase details and rejects other values", () => {
+    const script = (phase: object) => `export const meta = { apiVersion: 1, name: 'wf', description: 'phase validation', phases: [${JSON.stringify(phase)}] };`;
+    for (const phase of [{ title: "Review" }, { title: "Review", detail: "" }, { title: "Review", detail: "Check architecture" }]) {
+      expect(() => parseWorkflowScript(script(phase))).not.toThrow();
+    }
+    for (const detail of [null, 42, false, [], { x: 1 }]) {
+      expect(() => parseWorkflowScript(script({ title: "Review", detail }))).toThrow("meta phase detail must be a string");
+    }
   });
 
   it("requires the current workflow API before execution", async () => {
@@ -1222,13 +1232,14 @@ describe("workflow tool registration", () => {
     };
   }
 
-  it("registers both external_delegate and workflow by default", () => {
+  it("registers external_workflow without the old workflow alias", () => {
     const names: string[] = [];
     createSubagentExtension()(fakeApi(names) as never);
     expect(names).toContain("external_delegate");
     expect(names).toContain("external_help");
     expect(names).toContain("external_runs");
-    expect(names).toContain("workflow");
+    expect(names).toContain("external_workflow");
+    expect(names).not.toContain("workflow");
   });
 
   it("omits the workflow tool when workflow is disabled", () => {
@@ -1297,7 +1308,12 @@ describe("createWorkflowTool integration with pi custom profiles", () => {
     const ctx = {
       cwd,
       modelRegistry,
-      sessionManager: session.sessionManager,
+      sessionManager: {
+        isPersisted: () => true,
+        getSessionDir: () => cwd,
+        getSessionId: () => "planned-custom-run",
+        getBranch: () => session.sessionManager.getBranch(),
+      },
       isProjectTrusted: () => true,
     } as unknown as ExtensionToolContext;
 
@@ -1306,7 +1322,8 @@ describe("createWorkflowTool integration with pi custom profiles", () => {
       "call-custom-1",
       {
         script: `
-          export const meta = { apiVersion: 1, name: "custom-run", description: "runs custom profile" };
+          export const meta = { apiVersion: 1, name: "custom-run", description: "runs custom profile", phases: [{ title: "Review", detail: "The custom Pi reviewer checks the task without assigned edits." }] };
+          phase("Review");
           const resp = await agent("test task", { role: "custom", harness: "pi-deepseek" });
           return { resp };
         `,
@@ -1323,7 +1340,11 @@ describe("createWorkflowTool integration with pi custom profiles", () => {
     // changing for existing readers (journal/replay/rendering).
     expect(result.details.lifecycleStatus).toBe("done");
     expect(result.details.result).toEqual({ resp: "CUSTOM_PI_WORKFLOW_OK" });
-    expect(result.details.launch).toMatchObject({ description: "runs custom profile", workspace: cwd, mode: "foreground" });
+    const plannedPhases = [{ title: "Review", detail: "The custom Pi reviewer checks the task without assigned edits." }];
+    expect(result.details.plannedPhases).toEqual(plannedPhases);
+    expect(result.details.launch).toMatchObject({ description: "runs custom profile", workspace: cwd, mode: "foreground", plannedPhases });
+    const journal = await loadWorkflowJournal(getSessionWorkflowDir(ctx)!, result.details.runId!);
+    expect(journal?.launch).toMatchObject({ description: "runs custom profile", plannedPhases });
     const { inspectRun } = await import("../src/core/run-inspection.ts");
     const childLaunch = await inspectRun({ runsDirectory: join(agentDir, "pi-flow-external", "runs"), runId: result.details.agents[0]!.externalRunId!, view: "launch" });
     const childEvidence = JSON.parse(childLaunch.items.map(item => item.text).join(""));
@@ -1602,8 +1623,9 @@ describe("createWorkflowTool integration with pi custom profiles", () => {
 
     expect(result.isError).toBe(false);
     expect(Value.Check(workflowOutputSchema, result.structuredContent)).toBe(true);
+    expect(Value.Check(workflowOutputSchema, { ...result.structuredContent as object, tool: "workflow" })).toBe(false);
     expect(result.structuredContent).toMatchObject({
-      ok: true, tool: "workflow", action: "run", warnings: ["handled_child_failures"],
+      ok: true, tool: "external_workflow", action: "run", warnings: ["handled_child_failures"],
       data: { run: { kind: "workflow", live: false, state: { status: "done", outcome: "succeeded" }, children: { count: 2, failed: 2 },
         output: { delivery: "inline", value: { caught: 2, ok: "passed" } }, evidence: { integrity: "complete" } } },
     });

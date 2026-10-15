@@ -103,7 +103,7 @@ describe("pi-subagent agent contract", () => {
     mkdirSync(join(agentDir, "pi-flow-external", "overrides"), { recursive: true });
     writeFileSync(join(agentDir, "pi-flow-external", "overrides", "codex-worker.md"), "---\ndescription: Codex worker.\nbackend: codex\n---\n");
     const { session, model, modelRegistry } = await createSession();
-    const workflow = session.getToolDefinition("workflow") as any;
+    const workflow = session.getToolDefinition("external_workflow") as any;
     const result = await workflow.execute(
       "resume-validation",
       {
@@ -183,7 +183,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     );
     expect(blocking.details).toMatchObject({ status: "done", result: "finished direct blocking" });
 
-    const workflow = session.getToolDefinition("workflow") as any;
+    const workflow = session.getToolDefinition("external_workflow") as any;
     const workflowUpdate = vi.fn();
     const backgroundWorkflow = await workflow.execute(
       "background-workflow",
@@ -340,7 +340,7 @@ setInterval(() => {}, 1000);
     expect(waited.details.outcomes).toEqual([expect.objectContaining({ outcome: "cancelled", error: "superseded by parent" })]);
     expect(JSON.parse(readFileSync(join(launched.details.recordPath, "summary.json"), "utf8")).summary.error).toBe("superseded by parent");
 
-    const workflow = session.getToolDefinition("workflow") as any;
+    const workflow = session.getToolDefinition("external_workflow") as any;
     const launchedWorkflow = await workflow.execute(
       "cancel-workflow-reason",
       {
@@ -417,7 +417,7 @@ setInterval(() => {}, 1000);
     expect(getToolNames(rootContext)).toContain("external_delegate");
     expect(getToolNames(rootContext)).toContain("external_help");
     expect(getToolNames(rootContext)).toContain("external_runs");
-    expect(getToolNames(rootContext)).toContain("workflow");
+    expect(getToolNames(rootContext)).toContain("external_workflow");
     expect(getToolNames(rootContext)).not.toContain("pi_flow_role_create");
     expect(getToolNames(rootContext)).not.toContain("pi_flow_harness_create");
 

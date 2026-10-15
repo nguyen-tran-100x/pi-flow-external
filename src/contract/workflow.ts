@@ -1,11 +1,12 @@
 import { Type } from "typebox";
+import { EXTERNAL_WORKFLOW_TOOL } from "../tool-names.ts";
 import type { RegisteredRunEntry } from "../core/run-registry.ts";
 import { contractEnvelope, INLINE_RESULT_BYTES, type PublicError } from "./envelope.ts";
 import { liveWorkflowRun, workflowRunSchema, type EvidenceIntegrity, type PublicRun } from "./run.ts";
 
 const workflowData = Type.Object({ run: Type.Union([Type.Null(), workflowRunSchema]) });
 /** `ok` describes the workflow operation: a background launch is accepted, a foreground one settled successfully. */
-export const workflowOutputSchema = contractEnvelope("workflow", Type.Literal("run"), workflowData, workflowData);
+export const workflowOutputSchema = contractEnvelope(EXTERNAL_WORKFLOW_TOOL, Type.Literal("run"), workflowData, workflowData);
 
 export const HANDLED_CHILD_FAILURES = "handled_child_failures";
 
