@@ -9,19 +9,19 @@ import { workflowOutputSchema } from "../src/contract/workflow.ts";
 
 afterEach(() => vi.restoreAllMocks());
 const { createSession } = setupPiSubagentTestHarness();
-it("calls the registered Agent through native codemode and receives a typed prelaunch failure", async () => {
+it("calls the registered external_delegate through native codemode and receives a typed prelaunch failure", async () => {
   let receipt: unknown;
   let isError: boolean | undefined;
   const { session, registration } = await createSession({ codemode: true, extensions: [(pi) => {
     pi.on("tool_result", (event) => {
-      if (event.toolName === "Agent") {
+      if (event.toolName === "external_delegate") {
         receipt = event.structuredContent;
         isError = event.isError;
       }
     });
   }] });
   registration.setResponses([
-    () => fauxAssistantMessage([fauxToolCall("codemode", { code: 'const r = await tools.Agent({description:"Missing role",prompt:"test",role:"nonexistent",harness:"claude"}); if (r.ok !== false || r.data.run !== null) throw new Error("Bad receipt"); return r.error.code;' })]),
+    () => fauxAssistantMessage([fauxToolCall("codemode", { code: 'const r = await tools.external_delegate({description:"Missing role",prompt:"test",role:"nonexistent",harness:"claude"}); if (r.ok !== false || r.data.run !== null) throw new Error("Bad receipt"); return r.error.code;' })]),
     () => fauxAssistantMessage("done"),
   ]);
   await session.prompt("Run the offline contract probe.");
@@ -40,13 +40,13 @@ it.each(["success", "failure", "background"])("native codemode exposes %s withou
   const { session, registration } = await createSession({ codemode: true,
     piHarnesses: { "pi-test": { modelId: "faux-thinker" } },
     extensions: [(pi) => { pi.on("tool_result", (event) => {
-      if (event.toolName === "Agent") { receipts.push(event.structuredContent); errors.push(event.isError); }
+      if (event.toolName === "external_delegate") { receipts.push(event.structuredContent); errors.push(event.isError); }
     }); }],
   });
   registration.setResponses([
     (context) => context.messages.some(m => m.role === "user" && JSON.stringify(m).includes("CHILD_PROBE"))
       ? fauxAssistantMessage(mode === "failure" ? "" : "child verified", mode === "failure" ? { stopReason: "error", errorMessage: "fake failure" } : {})
-      : fauxAssistantMessage([fauxToolCall("codemode", { code: `const r = await tools.Agent({description:"Offline child",prompt:"CHILD_PROBE",role:"worker",harness:"pi-test",background:${mode === "background"}}); if(r.ok !== ${mode !== "failure"}) throw new Error("Wrong ok"); return "RECEIPT_CHECKED";` })]),
+      : fauxAssistantMessage([fauxToolCall("codemode", { code: `const r = await tools.external_delegate({description:"Offline child",prompt:"CHILD_PROBE",role:"worker",harness:"pi-test",background:${mode === "background"}}); if(r.ok !== ${mode !== "failure"}) throw new Error("Wrong ok"); return "RECEIPT_CHECKED";` })]),
     () => fauxAssistantMessage(mode === "failure" ? "" : "child verified", mode === "failure" ? { stopReason: "error", errorMessage: "fake failure" } : {}),
     () => fauxAssistantMessage("done"),
   ]);
@@ -63,16 +63,16 @@ it.each(["success", "failure", "background"])("native codemode exposes %s withou
 it.each(["validation", "blocked", "throw", "redaction"])("keeps %s separate from typed error data", async (mode) => {
   const { session, registration } = await createSession({ codemode: true, extensions: [(pi) => {
     if (mode === "blocked") pi.on("tool_call", (event) => {
-      if (event.toolName === "Agent") return { block: true, reason: "blocked probe" };
+      if (event.toolName === "external_delegate") return { block: true, reason: "blocked probe" };
     });
     if (mode === "redaction") pi.on("tool_result", (event) => {
-      if (event.toolName === "Agent") return { content: [{ type: "text", text: "REDACTED_PROBE" }], isError: false };
+      if (event.toolName === "external_delegate") return { content: [{ type: "text", text: "REDACTED_PROBE" }], isError: false };
     });
   }] });
-  if (mode === "throw") session.getToolDefinition("Agent")!.execute = async () => { throw new Error("programming probe"); };
+  if (mode === "throw") session.getToolDefinition("external_delegate")!.execute = async () => { throw new Error("programming probe"); };
   const args = mode === "validation" ? { description: "invalid" } : { description: "probe", prompt: "test", role: "missing", harness: "claude" };
   registration.setResponses([
-    () => fauxAssistantMessage([fauxToolCall("codemode", { code: `try { const r = await tools.Agent(${JSON.stringify(args)}); return {caught:false,value:r}; } catch(e) { return {caught:true,message:String(e.message)}; }` })]),
+    () => fauxAssistantMessage([fauxToolCall("codemode", { code: `try { const r = await tools.external_delegate(${JSON.stringify(args)}); return {caught:false,value:r}; } catch(e) { return {caught:true,message:String(e.message)}; }` })]),
     () => fauxAssistantMessage("done"),
   ]);
   await session.prompt("Run boundary probe.");
@@ -94,19 +94,22 @@ function scriptOutput(session: Awaited<ReturnType<typeof createSession>>["sessio
   return text.slice(1).join("\n");
 }
 
-it("discovers the actual Agent return declaration through native codemode", async () => {
+it("discovers the actual external_delegate return declaration through native codemode", async () => {
   const { session, registration } = await createSession({ codemode:true });
   registration.setResponses([
-    () => fauxAssistantMessage([fauxToolCall("codemode", {code:'return describeTool("Agent");'})]),
+    () => fauxAssistantMessage([fauxToolCall("codemode", {code:'return describeTool("external_delegate");'})]),
     () => fauxAssistantMessage("done"),
   ]);
-  await session.prompt("Describe Agent.");
+  await session.prompt("Describe external_delegate.");
   const declaration = scriptOutput(session);
+  expect(declaration).toContain("external_delegate(");
+  expect(declaration).toContain('tool: "external_delegate"');
+  expect(declaration).not.toContain("Agent(");
   expect(declaration).toContain("ok: true");
   expect(declaration).toContain("ok: false");
   expect(declaration).not.toContain("Promise<unknown>");
   expect(Buffer.byteLength(declaration)).toBeLessThan(12000);
-  console.info(`Native Agent declaration: ${Buffer.byteLength(declaration)} UTF-8 bytes`);
+  console.info(`Native external_delegate declaration: ${Buffer.byteLength(declaration)} UTF-8 bytes`);
 });
 
 
@@ -123,10 +126,10 @@ it.each(["settles", "unreadable"])("observes background state after evidence I/O
   let receipt: any;
   const {session, registration} = await createSession({codemode:true,
     piHarnesses:{"pi-test":{modelId:"faux-thinker"}},
-    extensions:[pi => { pi.on("tool_result", event => {if(event.toolName === "Agent") receipt=event.structuredContent;}); }],
+    extensions:[pi => { pi.on("tool_result", event => {if(event.toolName === "external_delegate") receipt=event.structuredContent;}); }],
   });
   registration.setResponses([
-    () => fauxAssistantMessage([fauxToolCall("codemode", {code:'return await tools.Agent({description:"Race probe",prompt:"child",role:"worker",harness:"pi-test",background:true});'})]),
+    () => fauxAssistantMessage([fauxToolCall("codemode", {code:'return await tools.external_delegate({description:"Race probe",prompt:"child",role:"worker",harness:"pi-test",background:true});'})]),
     () => { childFinished(); return fauxAssistantMessage("child done"); },
     () => fauxAssistantMessage("done"),
   ]);

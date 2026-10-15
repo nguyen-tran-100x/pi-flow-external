@@ -803,7 +803,7 @@ console.log(JSON.stringify({
     expect(existsSync(promptPath)).toBe(false);
   });
 
-  it("runs a muse-backed subagent through the Agent tool with a session receipt and reconstructable output", async () => {
+  it("runs a muse-backed subagent through the external_delegate tool with a session receipt and reconstructable output", async () => {
     const subagentsDir = join(agentDir, "pi-flow-external", "overrides");
     const binDir = join(tempDir, "bin-muse-agent-tool");
     const runInfoPath = join(tempDir, "muse-agent-tool-info.json");
@@ -835,7 +835,7 @@ console.log(env('run.terminal.completed', root({ terminal: 'completed', text: 'm
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", {
+      fauxAssistantMessage([fauxToolCall("external_delegate", {
         description: "Muse work",
         role: "worker",
         harness: "muse",

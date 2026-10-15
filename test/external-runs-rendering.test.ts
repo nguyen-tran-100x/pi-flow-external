@@ -68,15 +68,15 @@ describe("external_runs rendering", () => {
     return tool;
   }
 
-  it("registers its own renderCall/renderResult for every action, matching Agent and workflow's dedicated-renderer contract", () => {
+  it("registers its own renderCall/renderResult for every action, matching external_delegate and workflow's dedicated-renderer contract", () => {
     const externalRuns = findTool("external_runs");
-    const agent = findTool("Agent");
+    const agent = findTool("external_delegate");
     const workflow = findTool("workflow");
     expect(typeof externalRuns.renderCall).toBe("function");
     expect(typeof externalRuns.renderResult).toBe("function");
     // Every run tool this issue covers qualifies for a supported
     // excludeRenderers entry — see host-integration section in README.
-    const excludeRenderers = ["Agent", "workflow", "external_runs"];
+    const excludeRenderers = ["external_delegate", "workflow", "external_runs"];
     for (const tool of [agent, workflow, externalRuns]) {
       expect(preservesOriginalRenderer(tool, excludeRenderers)).toBe(true);
     }

@@ -45,14 +45,14 @@ import { runRecordsDirectory } from "./retention.ts";
 import { createTimeoutSignal, markSubagentTimedOut } from "./timeout.ts";
 import type { PermissionResolution } from "./permissions.ts";
 import { effectivePiResourcePreset, isValidThinkingLevel, VALID_THINKING_LEVELS } from "../harnesses.ts";
-
+import { EXTERNAL_DELEGATE_TOOL } from "../tool-names.ts";
 
 /**
  * The delegation tools a spawned child must never receive, so subagents cannot
  * recursively fan out. Owned by the spawn core and used as the default exclude
  * list so no caller can accidentally under-specify the nesting block.
  */
-export const CHILD_EXCLUDED_TOOLS: readonly string[] = ["Agent", "workflow"];
+export const CHILD_EXCLUDED_TOOLS: readonly string[] = [EXTERNAL_DELEGATE_TOOL, "workflow"];
 
 /**
  * Parameters for a single subagent run. This is the shared spawn primitive used

@@ -782,7 +782,7 @@ console.log(JSON.stringify({
     expect(existsSync(promptPath)).toBe(false);
   });
 
-  it("runs a grok-backed subagent through the Agent tool with nested activity and a session receipt", async () => {
+  it("runs a grok-backed subagent through the external_delegate tool with nested activity and a session receipt", async () => {
     const subagentsDir = join(agentDir, "pi-flow-external", "overrides");
     const binDir = join(tempDir, "bin-grok-agent-tool");
     const runInfoPath = join(tempDir, "grok-agent-tool-info.json");
@@ -829,7 +829,7 @@ console.log(JSON.stringify({
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", {
+      fauxAssistantMessage([fauxToolCall("external_delegate", {
         description: "Grok work",
         role: "worker",
         harness: "grok",
@@ -912,7 +912,7 @@ process.exit(1);
     const { session, registration } = await createSession();
     let rootContinuationContext: Context | undefined;
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", {
+      fauxAssistantMessage([fauxToolCall("external_delegate", {
         description: "Grok read-only review",
         role: "reviewer",
         harness: "grok",

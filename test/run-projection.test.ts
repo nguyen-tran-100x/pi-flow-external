@@ -3,7 +3,7 @@ import { normalizeRunStatus, projectDurableAgent } from "../src/core/run-project
 import type { RunRecordListItem } from "../src/core/run-inspection.ts";
 
 describe("run-projection", () => {
-  it("normalizes the legacy workflow 'completed' lifecycle word to the Agent vocabulary, leaving other words untouched", () => {
+  it("normalizes the legacy workflow 'completed' lifecycle word to the external_delegate vocabulary, leaving other words untouched", () => {
     expect(normalizeRunStatus("completed")).toBe("done");
     expect(normalizeRunStatus("running")).toBe("running");
     expect(normalizeRunStatus("error")).toBe("error");

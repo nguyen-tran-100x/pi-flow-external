@@ -81,7 +81,7 @@ function parseArgs(argv) {
   // --root-model/--root-thinking only mean anything when a real root Pi LLM is
   // actually prompted to choose the tool call, which only happens in the
   // --routing-smoke lane. The default deterministic lane below never prompts
-  // a root model at all (it calls Agent/workflow/external_runs directly), so
+  // a root model at all (it calls external_delegate/workflow/external_runs directly), so
   // accepting these flags there would silently do nothing and mislead callers
   // into thinking they changed root behavior.
   if (!options.routingSmoke && (rootModelProvided || rootThinkingProvided)) {
@@ -118,8 +118,8 @@ function help() {
   --thinking <level>            child thinking (default: high; ignored for pi, which pins its own)
   --permission <readonly|edit|danger>
                                 explicit child permission request (default: danger). Grok field runs pass this on the child call; omit it to keep danger.
-  --workflow                    test a blocking two-child workflow instead of a single direct Agent call
-  --interrupt                   launch a background Agent, then cancel/wait/inspect it through external_runs
+  --workflow                    test a blocking two-child workflow instead of a single direct external_delegate call
+  --interrupt                   launch a background external_delegate, then cancel/wait/inspect it through external_runs
   --agent-dir <dir>             Pi agent directory (default: isolated under run root; real dir for --backend pi)
   --run-root <dir>              temporary output directory
   --timeout-ms <ms>             per-child subagent timeout, and basis for the script's own watchdog (default: 180000)
@@ -127,7 +127,7 @@ function help() {
 
 Default mode is deterministic and root-model-free: it builds an in-process
 Pi SDK session with a faux, never-prompted root model and calls the
-Agent/workflow/external_runs tool executors directly, so tool selection is
+external_delegate/workflow/external_runs tool executors directly, so tool selection is
 never left to a live LLM decision. The selected external backend's child
 process (or, for --backend pi, its in-process nested Pi child) is real.
 
@@ -393,7 +393,7 @@ async function runRoutingSmoke(options) {
   // thrown assertion or setup error (the common case worth investigating)
   // preserves runRoot even without --keep; only a clean pass still cleans up.
   let failed = true;
-  const mode = options.workflow ? " workflow" : options.interrupt ? " interrupted Agent" : " Agent";
+  const mode = options.workflow ? " workflow" : options.interrupt ? " interrupted external_delegate" : " external_delegate";
   try {
     const fixture = path.join(options.runRoot, "fixture");
     const sessionDir = path.join(options.runRoot, "sessions");
@@ -438,8 +438,8 @@ async function runRoutingSmoke(options) {
     const rootPrompt = options.workflow
       ? `Call workflow exactly once with background:true and this exact script:\n\n${workflow}\n\nUse external_runs wait on the returned workflow run ID, then inspect its output and summary. Report the returned token lines and WORKFLOW_SUPERVISION_OK.`
       : options.interrupt
-        ? `Call Agent exactly once with background:true, description "External interruption smoke", role ${JSON.stringify(role)}, harness ${JSON.stringify(harnessName)}, permission ${JSON.stringify(permission)}, and prompt ${JSON.stringify(childPrompt)}. Cancel its returned run ID with external_runs using reason "E2E requested cancellation", wait for that run, then inspect its output and diagnostics. Report E2E_CANCELLED.`
-        : `Call Agent exactly once with description "External smoke", role ${JSON.stringify(role)}, harness ${JSON.stringify(harnessName)}, permission ${JSON.stringify(permission)}, and prompt ${JSON.stringify(childPrompt)}. Report its exact result.`;
+        ? `Call external_delegate exactly once with background:true, description "External interruption smoke", role ${JSON.stringify(role)}, harness ${JSON.stringify(harnessName)}, permission ${JSON.stringify(permission)}, and prompt ${JSON.stringify(childPrompt)}. Cancel its returned run ID with external_runs using reason "E2E requested cancellation", wait for that run, then inspect its output and diagnostics. Report E2E_CANCELLED.`
+        : `Call external_delegate exactly once with description "External smoke", role ${JSON.stringify(role)}, harness ${JSON.stringify(harnessName)}, permission ${JSON.stringify(permission)}, and prompt ${JSON.stringify(childPrompt)}. Report its exact result.`;
     const promptPath = path.join(options.runRoot, "prompt.md");
     writeFileSync(promptPath, rootPrompt);
 
@@ -447,7 +447,7 @@ async function runRoutingSmoke(options) {
       "pi", "-p", "--mode", "json", "--model", options.rootModel, "--thinking", options.rootThinking,
       "--session-dir", sessionDir, "--no-extensions", "--extension", path.join(repoRoot, "index.ts"),
       "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
-      "--tools", options.workflow ? "workflow,external_runs" : options.interrupt ? "Agent,external_runs" : "Agent", "--approve", `@${promptPath}`,
+      "--tools", options.workflow ? "workflow,external_runs" : options.interrupt ? "external_delegate,external_runs" : "external_delegate", "--approve", `@${promptPath}`,
     ];
 
     console.log(`Running ${options.backend}${mode} routing-smoke E2E`);
@@ -495,7 +495,7 @@ async function runRoutingSmoke(options) {
 // ---------------------------------------------------------------------------
 // Default deterministic lane: no root LLM is ever prompted. This builds an
 // in-process Pi SDK session (faux, never-streamed root model) and calls the
-// Agent/workflow/external_runs tool executors directly, exactly as
+// external_delegate/workflow/external_runs tool executors directly, exactly as
 // test/agent-contract.test.ts does. The selected external backend's child
 // (a real spawned CLI process, or, for --backend pi, a real in-process
 // nested Pi child against the caller's real settings.json version 5) is real.
@@ -581,7 +581,7 @@ async function buildDeterministicSession({ agentDir, cwd, sessionDir, subagentTi
 
   return {
     ctx,
-    agentTool: session.getToolDefinition("Agent"),
+    agentTool: session.getToolDefinition("external_delegate"),
     workflowTool: session.getToolDefinition("workflow"),
     runsTool: session.getToolDefinition("external_runs"),
     dispose: () => {
@@ -599,10 +599,10 @@ async function runDirect({ agentTool, ctx }, { role, harnessName, permission, ch
     undefined,
     ctx,
   );
-  assert(result.details?.status === "done", `Agent call did not complete: ${JSON.stringify(result.details)}`);
+  assert(result.details?.status === "done", `external_delegate call did not complete: ${JSON.stringify(result.details)}`);
   const actual = typeof result.details.result === "string" ? result.details.result.trim() : undefined;
   assert(actual === expectedResult, `Expected exact result ${JSON.stringify(expectedResult)}, got ${JSON.stringify(result.details.result)}`);
-  assert(contractData(result, "Agent").run?.state?.outcome === "succeeded", "Agent receipt did not report a succeeded run");
+  assert(contractData(result, "external_delegate").run?.state?.outcome === "succeeded", "external_delegate receipt did not report a succeeded run");
   const summaries = walk(evidenceDir).filter((file) => file.endsWith("summary.json"));
   assert(summaries.length === 1, `Expected 1 receipt, found ${summaries.length}`);
   const summary = JSON.parse(readFileSync(summaries[0], "utf8")).summary;
@@ -769,7 +769,7 @@ async function runDeterministic(options) {
   let failed = true;
   const originalAgentDirEnv = process.env.PI_CODING_AGENT_DIR;
   const originalRunsDirEnv = process.env.PI_FLOW_EXTERNAL_RUNS_DIR;
-  const mode = options.workflow ? " workflow" : options.interrupt ? " interrupted Agent" : " Agent";
+  const mode = options.workflow ? " workflow" : options.interrupt ? " interrupted external_delegate" : " external_delegate";
   try {
     const fixture = path.join(options.runRoot, "fixture");
     const evidenceDir = path.join(options.runRoot, "evidence");

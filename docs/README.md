@@ -17,6 +17,7 @@ Core reference guides for configuring and using the extension with Pi:
 | **[Workflows](workflows.md)** | Scripting API, parallel fan-out (`parallel()`), `ChildRunError` handling, structured schemas, and replay cache. |
 | **[Troubleshooting](troubleshooting.md)** | Diagnostic recipes, authentication checks, and `pi-cc-extensions` renderer compatibility. |
 | **[Migration Guide (v4 → v5)](migration-v4-to-v5.md)** | Upgrading from older configurations, backups, command mappings, and safe file purging. |
+| **[Tool Rename Migration (`Agent` → `external_delegate`)](migration-agent-to-external-delegate.md)** | Updating codemode calls, hooks, receipt checks, and renderer exclusions after the direct tool rename. |
 
 ---
 
@@ -25,7 +26,7 @@ Specifications for programmatic subagent delegation and tool outputs:
 
 | Document | Status | Purpose |
 |---|---|---|
-| **[Public Contract v1](public-contract.md)** | `Normative Contract` | Schema definitions, envelope shapes (`{ ok, data, error }`), and delivery invariants for `Agent`, `workflow`, and `external_runs`. |
+| **[Public Contract v1](public-contract.md)** | `Normative Contract` | Schema definitions, envelope shapes (`{ ok, data, error }`), and delivery invariants for `external_delegate`, `workflow`, and `external_runs`. |
 
 ---
 

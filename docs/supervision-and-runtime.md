@@ -33,12 +33,12 @@ Workspace /path/to/project
 
 ## Background Runs & Lifecycle
 
-By default, calls to `Agent` and `workflow` are blocking: the caller waits until the child process completes.
+By default, calls to `external_delegate` and `workflow` are blocking: the caller waits until the child process completes.
 
 Setting `background: true` queues and starts the work asynchronously while returning an immediate receipt containing a stable handle:
 
 ```ts
-const receipt = await tools.Agent({
+const receipt = await tools.external_delegate({
   description: "Audit security-sensitive endpoints",
   role: "reviewer",
   harness: "claude",
@@ -53,6 +53,8 @@ if (!receipt.ok) {
 
 const runId = receipt.data.run.runId; // e.g. "run_..."
 ```
+
+Background runs do not notify or resume this session when they finish. Collect them with `external_runs`: `wait`, then `inspect` with view `final` for a successful answer. For a failed run, read the `wait` outcome and `inspect` view `diagnostics`.
 
 ### Ownership Invariants
 - **Session-Owned:** Background children belong to the active Pi session, not a persistent OS daemon.

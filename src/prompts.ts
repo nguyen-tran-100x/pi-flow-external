@@ -92,13 +92,13 @@ export function buildCoordinatorPrompt(
 
 ${formatExternalRoleCatalog(profiles, defaultHarness, configuredHarnessNames)}
 
-Own the result and verify it yourself. Do the work directly unless a separate harness, a fresh context, or a bounded parallel review earns the overhead. A role is the job. A harness (${EXTERNAL_HARNESSES.join(", ")}, or a registered pi-* name) is the environment. Prefer the configured default harness unless the user asks for another or the task needs a capability the default lacks. Select both through Agent or workflow. Follow the user's own approval policy before widening a delegation. This extension has no fixed multi-agent approval threshold.
+Own the result and verify it yourself. Do the work directly unless a separate harness, a fresh context, or a bounded parallel review earns the overhead. A role is the job. A harness (${EXTERNAL_HARNESSES.join(", ")}, or a registered pi-* name) is the environment. Prefer the configured default harness unless the user asks for another or the task needs a capability the default lacks. Select both through external_delegate or workflow. Follow the user's own approval policy before widening a delegation. This extension has no fixed multi-agent approval threshold.
 
 Give every child an objective, the context it needs, the changes it may make, a deliverable, and the check you will run. Use absolute paths and say whether the task is read-only or may edit. Permission is the call's tier, otherwise defaultPermission (danger unless changed). Omit it when the child should keep that default, including a reviewer that may use a shell and still must not edit. A danger tier still has to stay inside the authorization the user gave you. agy accepts only danger and rejects readonly and edit.
 
 Choose a fresh child or resume on purpose. Omit context for independent work. context {mode:"recent", turns:N} shares the last N user turns, including the current turn; {mode:"full"} shares the available post-compaction conversation. Snapshots drop thinking, system instructions, and pending calls, reject images and payloads over 1 MiB, and are sent to that harness. resume continues the same CLI child and cannot be combined with sharing. A named pi-* harness has no persisted session and no enforced budget. Prefer resume for the same task and a new child for an independent review.
 
-Calls block unless background:true. Then supervise with external_runs and judge view "final" yourself. Same-harness parallel work shares one maxConcurrentSubagents cap: parallel([() => agent(...), ...]) or separate background Agent calls in one turn. Sequential awaits stay serial. Report milestones. Retry a failed run, or switch its model or harness, only when the user authorized that step. agy alone may make one disclosed infrastructure retry. Nested agents may start in another workspace.
+Calls block unless background:true. Background runs do not notify or resume this session; collect them with external_runs (wait, then inspect with view "final"). Check failed outcomes and diagnostics instead of expecting a final answer from a failed run. Same-harness parallel work shares one maxConcurrentSubagents cap: parallel([() => agent(...), ...]) or separate background external_delegate calls in one turn. Sequential awaits stay serial. Report milestones. Retry a failed run, or switch its model or harness, only when the user authorized that step. agy alone may make one disclosed infrastructure retry. Nested agents may start in another workspace.
 
 Catalog availability reflects enabled harnesses and built-in/authored roles, not CLI installation or authentication. Disabled harnesses reject calls without fallback; manage them through /external config. Harness and role lifecycle commands live under /external config harness and /external config role. Role selection never falls back. external_help topic usage is the playbook; roles, permissions, and workflow are the references.`;
 }
@@ -115,7 +115,7 @@ export interface UsageAgentExample {
   context?: { mode: "none" } | { mode: "recent"; turns: number } | { mode: "full" };
 }
 
-/** One self-contained Agent call. Valid against the Agent tool schema. Permission stays omitted. */
+/** One self-contained external_delegate call. Valid against the external_delegate tool schema. Permission stays omitted. */
 export const USAGE_ONE_AGENT: UsageAgentExample = {
   description: "Map the repository",
   prompt: "Map /absolute/repo. Read only. Return the important files and how they fit together. Do not edit.",
@@ -203,7 +203,7 @@ function jsonBlock(value: unknown): string {
 /** Worked playbook served by external_help topic "usage". Examples are the exported constants. */
 export function formatUsagePlaybook(): string {
   const script = usageWorkflowScript();
-  return `Practical delegation playbook. A role is the work. A harness is the environment: ${EXTERNAL_HARNESSES.join(", ")}, or a registered pi-* name. Agent and workflow select every one of those harnesses the same way. Prefer the configured default harness. Name another when the user asks for it or the task needs a capability the default lacks. Do the task directly unless a separate environment, an independent context, or bounded parallel work is worth the coordination. You still own the outcome: read the result and check the deliverable. Follow the user's approval policy before widening a delegation. There is no fixed team-size threshold here.
+  return `Practical delegation playbook. A role is the work. A harness is the environment: ${EXTERNAL_HARNESSES.join(", ")}, or a registered pi-* name. external_delegate and workflow select every one of those harnesses the same way. Prefer the configured default harness. Name another when the user asks for it or the task needs a capability the default lacks. Do the task directly unless a separate environment, an independent context, or bounded parallel work is worth the coordination. You still own the outcome: read the result and check the deliverable. Follow the user's approval policy before widening a delegation. There is no fixed team-size threshold here.
 
 A named pi-* harness runs in-process on the SDK's built-in tools. Preset minimal leaves skills unloaded. Preset skills loads installed skills, and project skills only when the project is trusted. Those presets select skill loading. They are not this extension's tools and they are not web search. Resume does not continue a pi-* child, and a budget there is recorded without enforcement.
 
@@ -211,9 +211,9 @@ Tell each child the objective, the context it needs, what it may change, the del
 
 Choose fresh context or resume deliberately. Omit context, or pass {"mode":"none"}, for independent work such as a review. {"mode":"recent","turns":N} and {"mode":"full"} share parent conversation and cannot be combined with resume. resume continues one prior CLI run that recorded a session id, on the same backend: ${EXTERNAL_HARNESSES.join(", ")}. A named pi-* harness has no persisted session, so resume does not continue it. Prefer resume for the same task and a new child when you want an independent judgment.
 
-Calls block until the child finishes. background true returns a run id while the originating session still owns the work. Use external_runs to wait, then read view final, and judge that answer yourself. A failed or aborted run stays failed. Retry it, or switch model or harness, only when the user authorized that step. agy may make one disclosed infrastructure retry; that exception is not yours to extend.
+Calls block until the child finishes. background true returns a run id while the originating session still owns the work. Background runs do not notify or resume this session. Use external_runs to wait, then inspect with view final, and judge that answer yourself. For failed runs, check the outcome and diagnostics; view final only provides verified successful answers. A failed or aborted run stays failed. Retry it, or switch model or harness, only when the user authorized that step. agy may make one disclosed infrastructure retry; that exception is not yours to extend.
 
-One Agent call. Permission stays omitted; the prompt carries the no-edit intent:
+One external_delegate call. Permission stays omitted; the prompt carries the no-edit intent:
 ${jsonBlock(USAGE_ONE_AGENT)}
 
 Independent review. Fresh context, a reviewer role, the default tier, no resume:

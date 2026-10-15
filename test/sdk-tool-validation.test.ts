@@ -220,7 +220,7 @@ describe("SDK tool validation and downstream placeholder compatibility (#62)", (
     });
   });
 
-  describe("Agent selector placeholder tolerance", () => {
+  describe("external_delegate selector placeholder tolerance", () => {
     it("tolerates blank resume placeholder without falsely conflicting with parent context", () => {
       const messages = [{ role: "user" as const, content: "Parent message", timestamp: 0 }];
       const dummyBriefing = prepareParentContext(

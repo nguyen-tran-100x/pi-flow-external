@@ -2,6 +2,16 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [4.0.0-external.0] - 2026-10-13
+
+### Breaking
+- Renamed the direct delegation tool **`Agent` → `external_delegate`** (#85). Flow no longer registers `Agent`; there is no alias or automatic translation. Update `tools.Agent(...)` → `tools.external_delegate(...)`, `describeTool("Agent")` → `describeTool("external_delegate")`, exact-name hooks, tool allow-lists, and receipt checks. Stale calls may reach another extension's `Agent` tool rather than fail.
+- New direct receipts report `tool: "external_delegate"`. Envelope `contractVersion: 1`, `action: "delegate"`, run `kind: "agent"`, and workflow `agent()` remain unchanged. Settings remain version 5; no settings conversion or saved-run rewrite is required.
+- Update Flow's entry in `pi-cc-extensions` `excludeRenderers` to `"external_delegate"` (alongside `"workflow"` and `"external_runs"`). Preserve unrelated entries, including `"Agent"` if another extension needs it, and restart Pi. See the [tool migration guide](docs/migration-agent-to-external-delegate.md).
+
+### Changed
+- Current documentation, coordinator guidance, and help use the namespaced direct tool name. Background guidance explicitly states that runs do not notify or resume the parent session: collect them through `external_runs` (`wait`, then `inspect` with `view: "final"` for a successful answer; inspect outcomes and diagnostics for failures).
+
 ## [3.2.1-external.0] - 2026-10-05
 
 ### Changed

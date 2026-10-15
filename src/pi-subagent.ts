@@ -50,6 +50,7 @@ import { registerProfileCreator, startRoleInterview, startHarnessInterview } fro
 import { registerExternalCommand } from "./external-command.ts";
 import { DEFAULT_EXTERNAL_SETTINGS, loadExternalSettings, resolveCtxDefaultHarness, resolveExternalSettings, renderDefaultHarness } from "./settings.ts";
 import { EXTERNAL_HARNESSES } from "./types.ts";
+import { EXTERNAL_DELEGATE_TOOL } from "./tool-names.ts";
 import type {
   PermissionTier,
   SubagentBackend,
@@ -359,8 +360,8 @@ function createAgentTool(
   options: CreateAgentToolOptions,
 ): ToolDefinition<typeof agentToolParameters, SubagentToolDetails> {
   return defineTool({
-    name: "Agent",
-    label: "Agent",
+    name: EXTERNAL_DELEGATE_TOOL,
+    label: EXTERNAL_DELEGATE_TOOL,
     description: "Delegate one task to an external Claude Code, Codex CLI, Antigravity, Grok CLI, Muse Code, OpenCode, or registered Pi harness role.",
     promptSnippet: AGENT_PROMPT_SNIPPET,
     parameters: agentToolParameters,
@@ -882,7 +883,7 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
 
     pi.on("before_agent_start", (event, ctx) => {
       const tools = pi.getAllTools();
-      if (!tools.some((tool) => tool.name === "Agent")) {
+      if (!tools.some((tool) => tool.name === EXTERNAL_DELEGATE_TOOL)) {
         return;
       }
       // No per-turn counter reset: the shared ConcurrencyLimiter takes a slot

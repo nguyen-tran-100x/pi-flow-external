@@ -4,20 +4,22 @@ import { Value } from "typebox/value";
 import { agentOutputSchema, agentReceipt } from "../src/contract/agent.ts";
 import { RunRegistry } from "../src/core/run-registry.ts";
 
-describe("Agent public receipt", () => {
+describe("external_delegate public receipt", () => {
   it.each([false, null, 0, ""])("preserves complete canonical value %j", async (value) => {
     const registry = new RunRegistry();
     const handle = registry.start({ runId: "run_test", kind: "agent", sessionId: "test", project: "/tmp", run: () => value });
     await handle.result;
     const receipt = agentReceipt({ entry: registry.get("run_test"), integrity: "unknown" });
     expect(Value.Check(agentOutputSchema, receipt)).toBe(true);
+    expect(receipt).toMatchObject({ contractVersion: 1, tool: "external_delegate", action: "delegate", ok: true, data: { run: { kind: "agent" } } });
+    expect(Value.Check(agentOutputSchema, { ...receipt, tool: "Agent" })).toBe(false);
     expect(receipt.data.run?.output).toMatchObject({ delivery: "inline", value });
     expect(receipt.data.run?.live).toBe(false);
   });
 
   it("has no fabricated run for pre-registration failures", () => {
     const receipt = agentReceipt({ error: new ExpectedFlowError("selection_invalid", "Unknown role") });
-    expect(receipt).toMatchObject({ ok: false, data: { run: null }, error: { code: "selection_invalid" } });
+    expect(receipt).toMatchObject({ tool: "external_delegate", action: "delegate", ok: false, data: { run: null }, error: { code: "selection_invalid" } });
     expect(Value.Check(agentOutputSchema, receipt)).toBe(true);
     expect(Value.Check(agentOutputSchema, { ...receipt, error: undefined })).toBe(false);
   });

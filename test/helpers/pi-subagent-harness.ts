@@ -261,7 +261,7 @@ const modelRegistry = new ModelRegistry(modelRuntime);
       rootContinuationContext?: Context;
     } = {};
     registration.setResponses([
-      fauxAssistantMessage([fauxToolCall("Agent", toolArgs)], { stopReason: "toolUse" }),
+      fauxAssistantMessage([fauxToolCall("external_delegate", toolArgs)], { stopReason: "toolUse" }),
       (context, options, _state, model) => {
         captured.childContext = context;
         captured.childOptions = options as SimpleStreamOptions;

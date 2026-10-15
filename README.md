@@ -76,7 +76,7 @@ Pi recognizes the request and delegates:
 *(Programmatic / Codemode equivalent):*
 
 ```ts
-const receipt = await tools.Agent({
+const receipt = await tools.external_delegate({
   description: "Map repository architecture",
   role: "explorer",
   harness: "claude",
@@ -130,7 +130,7 @@ Pi automatically packages recent conversation turns into the briefing:
 *(Codemode):*
 
 ```ts
-await tools.Agent({
+await tools.external_delegate({
   description: "Review refactoring plan",
   role: "reviewer",
   harness: "codex",
@@ -154,7 +154,7 @@ Pi launches the run in the background, gives you a run ID, and keeps your chat s
 *(Codemode):*
 
 ```ts
-const receipt = await tools.Agent({
+const receipt = await tools.external_delegate({
   description: "Audit security-sensitive endpoints",
   role: "reviewer",
   harness: "claude",
@@ -215,6 +215,10 @@ Settings use version 5. If upgrading from an older version:
 1. Run `/external` and choose **Preview format update…**, or run `/external config convert`.
 2. Existing configurations, overrides, and disabled states are preserved.
 3. See [Migration Guide](docs/migration-v4-to-v5.md) for full details and optional file purging.
+
+### Upgrading from the `Agent` tool
+
+The direct delegation tool `Agent` is now `external_delegate`, with no alias. Update codemode calls, hooks, and renderer exclusions. See [Tool Rename Migration](docs/migration-agent-to-external-delegate.md).
 
 ---
 
