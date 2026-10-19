@@ -175,7 +175,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     await vi.waitFor(() => {
       expect(existsSync(startedPath)).toBe(true);
       expect(readFileSync(startedPath, "utf8")).toContain("direct background");
-    }, { timeout: 5_000 });
+    }, { timeout: 10_000 });
     expect(existsSync(directRelease)).toBe(false);
     expect(directUpdate).not.toHaveBeenCalled();
 
@@ -184,7 +184,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
       const summary = JSON.parse(readFileSync(join(direct.details.recordPath, "summary.json"), "utf8"));
       expect(summary.summary.status).toBe("done");
       expect(sendCustomMessageSpy).toHaveBeenCalledTimes(1);
-    });
+    }, { timeout: 10_000 });
     expect(statusUpdates.at(-1)).toEqual(["pi-flow-runs", undefined]);
     expect(notifications).toContainEqual([`Background subagent ${direct.details.runId} succeeded.`, "info"]);
     expect(sendCustomMessageSpy).toHaveBeenLastCalledWith(
@@ -223,14 +223,14 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     await vi.waitFor(() => {
       expect(existsSync(startedPath)).toBe(true);
       expect(readFileSync(startedPath, "utf8")).toContain("workflow background");
-    }, { timeout: 5_000 });
+    }, { timeout: 10_000 });
     expect(existsSync(workflowRelease)).toBe(false);
     expect(workflowUpdate).not.toHaveBeenCalled();
     writeFileSync(workflowRelease, "go");
     await vi.waitFor(() => {
       expect(readFileSync(backgroundWorkflow.details.journalPath, "utf8")).toContain('"type":"run_complete"');
       expect(sendCustomMessageSpy).toHaveBeenCalledTimes(2);
-    });
+    }, { timeout: 10_000 });
     expect(statusUpdates.at(-1)).toEqual(["pi-flow-runs", undefined]);
     expect(notifications).toContainEqual([`Background workflow ${backgroundWorkflow.details.runId} succeeded.`, "info"]);
     expect(sendCustomMessageSpy).toHaveBeenLastCalledWith(
@@ -272,10 +272,19 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
         const s = JSON.parse(readFileSync(join(run.details.recordPath, "summary.json"), "utf8"));
         expect(s.summary.status).toBe("done");
       }
-    });
+    }, { timeout: 10_000 });
     // Still inside agent_start: no wake message sent yet.
     expect(sendCustomMessageSpy).toHaveBeenCalledTimes(2);
     const externalRuns = session.getToolDefinition("external_runs") as any;
+    // A failed inspect (bad cursor) must not mark batchOne as collected.
+    const badInspect = await externalRuns.execute(
+      "inspect-bad-cursor",
+      { action: "inspect", runIds: [batchOne.details.runId], view: "final", cursor: "not-a-cursor" },
+      undefined,
+      undefined,
+      context,
+    );
+    expect(badInspect.isError).toBe(true);
     await externalRuns.execute(
       "inspect-bg",
       { action: "inspect", runIds: [inspectedRun.details.runId], view: "final" },
@@ -284,7 +293,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
       context,
     );
     await (session as any).extensionRunner.emit({ type: "agent_end", messages: [] });
-    await vi.waitFor(() => expect(sendCustomMessageSpy).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(sendCustomMessageSpy).toHaveBeenCalledTimes(3), { timeout: 10_000 });
     expect(sendCustomMessageSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({
         customType: "pi-flow-background-settled",

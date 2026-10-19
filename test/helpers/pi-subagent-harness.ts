@@ -84,8 +84,9 @@ export function setupPiSubagentTestHarness(onSetup?: (state: HarnessState) => vo
     onSetup?.({ tempDir, cwd, agentDir, originalPathEnv, registrations, sessions });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     for (const session of sessions.splice(0)) {
+      await (session as { extensionRunner?: { emit?: (event: unknown) => Promise<unknown> } }).extensionRunner?.emit?.({ type: "session_shutdown" }).catch(() => undefined);
       session.dispose();
     }
     for (const registration of registrations.splice(0)) {
@@ -114,6 +115,7 @@ export function setupPiSubagentTestHarness(onSetup?: (state: HarnessState) => vo
     if (index !== -1) {
       sessions.splice(index, 1);
     }
+    void (session as { extensionRunner?: { emit?: (event: unknown) => Promise<unknown> } }).extensionRunner?.emit?.({ type: "session_shutdown" }).catch(() => undefined);
     session.dispose();
   }
 

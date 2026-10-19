@@ -834,7 +834,11 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
     const updateBackgroundStatus = (sessionId = activeSessionId) => {
       if (!sessionId || sessionId !== activeSessionId || !activeUiCtx?.hasUI || typeof activeUiCtx.ui?.setStatus !== "function") return;
       const roots = rootState.registry.listBackgroundRoots(sessionId);
-      activeUiCtx.ui.setStatus(BG_STATUS_KEY, formatBackgroundRunsStatus(roots, activeUiCtx.ui.theme));
+      try {
+        activeUiCtx.ui.setStatus(BG_STATUS_KEY, formatBackgroundRunsStatus(roots, activeUiCtx.ui.theme));
+      } catch {
+        // Ignore stale or disposed UI contexts.
+      }
     };
 
     const clearWakeTimer = () => {
@@ -855,17 +859,24 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
           rootState.registry.isSessionActive(sessionId, item.sessionVersion),
       );
       if (uncollected.length === 0) return;
-      for (const item of uncollected) rootState.registry.markCollected(item.entry.runId);
       const payload = buildBackgroundWakePayload(uncollected.map((item) => item.entry));
-      pi.sendMessage(
-        {
-          customType: BACKGROUND_SETTLED_CUSTOM_TYPE,
-          content: [{ type: "text", text: payload.text }],
-          display: true,
-          details: { runs: payload.runs },
-        },
-        { triggerTurn: true, deliverAs: "followUp" },
-      );
+      try {
+        pi.sendMessage(
+          {
+            customType: BACKGROUND_SETTLED_CUSTOM_TYPE,
+            content: [{ type: "text", text: payload.text }],
+            display: true,
+            details: { runs: payload.runs },
+          },
+          { triggerTurn: true, deliverAs: "followUp" },
+        );
+        for (const item of uncollected) rootState.registry.markCollected(item.entry.runId);
+      } catch {
+        if (activeSessionId === sessionId) {
+          activeSessionId = undefined;
+          activeUiCtx = undefined;
+        }
+      }
     };
 
     const scheduleWakeFlush = (sessionId: string) => {

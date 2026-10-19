@@ -267,19 +267,18 @@ describe("RunRegistry", () => {
       "run_closed",
     ]);
 
-    // An interrupted multi-target wait must not mark already-settled siblings as collected.
-    const abortWait = new AbortController();
-    const interruptedWait = registry.wait(["run_partial_wait", "wf_natural"], "all", abortWait.signal);
+    // registry.wait(..., "any") (used by external_runs' progress loop) must not mark
+    // targets collected before external_runs finishes its wait without aborting.
+    const stepWait = registry.wait(["run_partial_wait"], "any");
     bgPartialWait.resolve("partial-ok");
+    await stepWait;
     await partialWaitRun.result;
-    abortWait.abort();
-    await expect(interruptedWait).rejects.toThrow("Run wait aborted");
     expect(registry.isCollected("run_partial_wait")).toBe(false);
 
-    const waitPromise = registry.wait(["run_waited"], "all");
+    registry.markCollected("run_waited");
     bgWaited.resolve("waited-ok");
-    await waitPromise;
     await waitedRun.result;
+    expect(registry.isCollected("run_waited")).toBe(true);
 
     registry.cancel("run_cancelled", "user cancelled");
     await expect(cancelledRun.result).rejects.toThrow("cancelled");

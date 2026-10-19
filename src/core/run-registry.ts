@@ -269,7 +269,6 @@ export class RunRegistry {
       const check = () => {
         const terminal = entries.flatMap((entry) => entry.outcome ? [entry.outcome] : []);
         if ((mode === "any" && terminal.length > 0) || (mode === "all" && terminal.length === entries.length)) {
-          for (const outcome of terminal) this.markCollected(outcome.runId);
           cleanup();
           resolve({ terminal, pending: entries.filter((entry) => !entry.outcome).map((entry) => entry.runId) });
         }
