@@ -953,6 +953,7 @@ export function createExternalRunsTool(
           }
         }
         const served = entries.slice(startIndex, index);
+        for (const entry of served) if (!entry.run.live) options.registry.markCollected(entry.run.runId);
         const nextCursor = index < entries.length ? encodeBatchCursor(scope, runIds, index) : undefined;
         const payload = { entries: served.map((entry) => entry.legacy), ...(nextCursor ? { nextCursor } : {}) };
         return { ...result(JSON.stringify(payload), payload), data: { mode: "batch", entries: served.map((entry) => entry.run), ...(nextCursor ? { nextCursor } : {}) } };
@@ -962,12 +963,15 @@ export function createExternalRunsTool(
         assertRunId(params.runId);
         const runId = params.runId;
         const view = params.view ?? "summary";
-        const single = (text: string, encoding: "json" | "text", details: Record<string, unknown>, extra: { finalAvailable?: boolean; outputStatus?: string } = {}, contentText = text) => ({
-          ...result(contentText, details),
-          data: { mode: "single", runId, view, page: { text, encoding, complete: typeof details.nextCursor !== "string", ...(typeof details.nextCursor === "string" ? { nextCursor: details.nextCursor } : {}) }, ...compact(extra) },
-        });
         const entry = options.registry.get(runId);
         if (entry) assertOwned(entry, sessionId, project);
+        const single = (text: string, encoding: "json" | "text", details: Record<string, unknown>, extra: { finalAvailable?: boolean; outputStatus?: string } = {}, contentText = text) => {
+          if (!entry || entry.state === "terminal") options.registry.markCollected(runId);
+          return {
+            ...result(contentText, details),
+            data: { mode: "single", runId, view, page: { text, encoding, complete: typeof details.nextCursor !== "string", ...(typeof details.nextCursor === "string" ? { nextCursor: details.nextCursor } : {}) }, ...compact(extra) },
+          };
+        };
         const isWorkflowId = WORKFLOW_ID.test(runId);
         const workflowDir = getSessionWorkflowDir(ctx);
         const historical = !entry && isWorkflowId ? await loadOwnedJournal(workflowDir, runId, project) : undefined;
@@ -1162,6 +1166,7 @@ export function createExternalRunsTool(
       const outcomeByRunId = new Map(outcomes.map((outcome) => [outcome.runId, outcome] as const));
       const settled = known.flatMap((target) => {
         const outcome = outcomeByRunId.get(target.runId);
+        if (outcome) options.registry.markCollected(target.runId);
         return outcome ? [{ target, outcome }] : [];
       });
       const projected = await collectOutcomes(settled.map(({ outcome }) => outcome), runsDirectory, params.limitBytes);

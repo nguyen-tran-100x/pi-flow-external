@@ -148,8 +148,18 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     chmodSync(fakeCodex, 0o755);
     process.env.PATH = `${binDir}:${originalPathEnv ?? ""}`;
 
+    const statusUpdates: Array<[string, string | undefined]> = [];
+    const notifications: Array<[string, string | undefined]> = [];
     const { session, model, modelRegistry } = await createSession();
-    const context = makeExecutionContext({ hasUI: false, model, modelRegistry, persistedSession: true }) as any;
+    const sendCustomMessageSpy = vi.spyOn(session as any, "sendCustomMessage").mockResolvedValue(undefined);
+    const context = makeExecutionContext({
+      hasUI: true,
+      model,
+      modelRegistry,
+      persistedSession: true,
+      onStatus: (key, text) => statusUpdates.push([key, text]),
+    }) as any;
+    context.ui.notify = (msg: string, level?: string) => notifications.push([msg, level]);
     context.sessionManager.getBranch = () => [];
     const agent = session.getToolDefinition("external_delegate") as any;
     const directUpdate = vi.fn();
@@ -161,10 +171,11 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
       context,
     );
     expect(direct.details).toMatchObject({ status: "queued", runId: expect.stringMatching(/^run_/) });
+    expect(statusUpdates).toContainEqual(["pi-flow-runs", `pi-flow 1 bg (${direct.details.runId.slice(-8)})`]);
     await vi.waitFor(() => {
       expect(existsSync(startedPath)).toBe(true);
       expect(readFileSync(startedPath, "utf8")).toContain("direct background");
-    }, { timeout: 5_000 });
+    }, { timeout: 10_000 });
     expect(existsSync(directRelease)).toBe(false);
     expect(directUpdate).not.toHaveBeenCalled();
 
@@ -172,7 +183,18 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     await vi.waitFor(() => {
       const summary = JSON.parse(readFileSync(join(direct.details.recordPath, "summary.json"), "utf8"));
       expect(summary.summary.status).toBe("done");
-    });
+      expect(sendCustomMessageSpy).toHaveBeenCalledTimes(1);
+    }, { timeout: 10_000 });
+    expect(statusUpdates.at(-1)).toEqual(["pi-flow-runs", undefined]);
+    expect(notifications).toContainEqual([`Background subagent ${direct.details.runId} succeeded.`, "info"]);
+    expect(sendCustomMessageSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        customType: "pi-flow-background-settled",
+        display: true,
+        details: { runs: [expect.objectContaining({ runId: direct.details.runId, kind: "agent" })] },
+      }),
+      { triggerTurn: true, deliverAs: "followUp" },
+    );
 
     const blocking = await agent.execute(
       "blocking-agent",
@@ -182,6 +204,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
       context,
     );
     expect(blocking.details).toMatchObject({ status: "done", result: "finished direct blocking" });
+    expect(sendCustomMessageSpy).toHaveBeenCalledTimes(1);
 
     const workflow = session.getToolDefinition("external_workflow") as any;
     const workflowUpdate = vi.fn();
@@ -196,14 +219,94 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
       context,
     );
     expect(backgroundWorkflow.details).toMatchObject({ status: "running", runId: expect.stringMatching(/^wf_/) });
+    expect(statusUpdates).toContainEqual(["pi-flow-runs", `pi-flow 1 bg (${backgroundWorkflow.details.runId.slice(-8)})`]);
     await vi.waitFor(() => {
       expect(existsSync(startedPath)).toBe(true);
       expect(readFileSync(startedPath, "utf8")).toContain("workflow background");
-    }, { timeout: 5_000 });
+    }, { timeout: 10_000 });
     expect(existsSync(workflowRelease)).toBe(false);
     expect(workflowUpdate).not.toHaveBeenCalled();
     writeFileSync(workflowRelease, "go");
-    await vi.waitFor(() => expect(readFileSync(backgroundWorkflow.details.journalPath, "utf8")).toContain('"type":"run_complete"'));
+    await vi.waitFor(() => {
+      expect(readFileSync(backgroundWorkflow.details.journalPath, "utf8")).toContain('"type":"run_complete"');
+      expect(sendCustomMessageSpy).toHaveBeenCalledTimes(2);
+    }, { timeout: 10_000 });
+    expect(statusUpdates.at(-1)).toEqual(["pi-flow-runs", undefined]);
+    expect(notifications).toContainEqual([`Background workflow ${backgroundWorkflow.details.runId} succeeded.`, "info"]);
+    expect(sendCustomMessageSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        customType: "pi-flow-background-settled",
+        display: true,
+        details: { runs: [expect.objectContaining({ runId: backgroundWorkflow.details.runId, kind: "workflow" })] },
+      }),
+      { triggerTurn: true, deliverAs: "followUp" },
+    );
+
+    // During an active turn (agent_start), settled background runs are held;
+    // inspecting one marks it collected, and agent_end batches the remaining
+    // uncollected runs into a single follow-up message.
+    await (session as any).extensionRunner.emit({ type: "agent_start" });
+    const inspectedRun = await agent.execute(
+      "bg-inspected",
+      { description: "Inspected bg", prompt: "direct inspected", role: "worker", harness: "codex", background: true },
+      undefined,
+      undefined,
+      context,
+    );
+    const batchOne = await agent.execute(
+      "bg-batch-1",
+      { description: "Batch 1", prompt: "direct batch 1", role: "worker", harness: "codex", background: true },
+      undefined,
+      undefined,
+      context,
+    );
+    const batchTwo = await agent.execute(
+      "bg-batch-2",
+      { description: "Batch 2", prompt: "direct batch 2", role: "worker", harness: "codex", background: true },
+      undefined,
+      undefined,
+      context,
+    );
+    await vi.waitFor(() => {
+      for (const run of [inspectedRun, batchOne, batchTwo]) {
+        const s = JSON.parse(readFileSync(join(run.details.recordPath, "summary.json"), "utf8"));
+        expect(s.summary.status).toBe("done");
+      }
+    }, { timeout: 10_000 });
+    // Still inside agent_start: no wake message sent yet.
+    expect(sendCustomMessageSpy).toHaveBeenCalledTimes(2);
+    const externalRuns = session.getToolDefinition("external_runs") as any;
+    // A failed inspect (bad cursor) must not mark batchOne as collected.
+    const badInspect = await externalRuns.execute(
+      "inspect-bad-cursor",
+      { action: "inspect", runIds: [batchOne.details.runId], view: "final", cursor: "not-a-cursor" },
+      undefined,
+      undefined,
+      context,
+    );
+    expect(badInspect.isError).toBe(true);
+    await externalRuns.execute(
+      "inspect-bg",
+      { action: "inspect", runIds: [inspectedRun.details.runId], view: "final" },
+      undefined,
+      undefined,
+      context,
+    );
+    await (session as any).extensionRunner.emit({ type: "agent_end", messages: [] });
+    await vi.waitFor(() => expect(sendCustomMessageSpy).toHaveBeenCalledTimes(3), { timeout: 10_000 });
+    expect(sendCustomMessageSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        customType: "pi-flow-background-settled",
+        details: {
+          runs: expect.arrayContaining([
+            expect.objectContaining({ runId: batchOne.details.runId }),
+            expect.objectContaining({ runId: batchTwo.details.runId }),
+          ]),
+        },
+      }),
+      { triggerTurn: true, deliverAs: "followUp" },
+    );
+    expect((sendCustomMessageSpy.mock.lastCall?.[0] as { details?: { runs?: unknown[] } })?.details?.runs).toHaveLength(2);
 
     disposeSession(session);
   });

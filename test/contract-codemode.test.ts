@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { expect, it, vi, afterEach } from "vitest";
 import * as evidence from "../src/core/run-inspection.ts";
 import { Value } from "typebox/value";
@@ -117,11 +119,15 @@ it.each(["settles", "unreadable"])("observes background state after evidence I/O
   let childFinished!: () => void;
   const finished = new Promise<void>(resolve => { childFinished = resolve; });
   const original = evidence.getRunRecord;
-  vi.spyOn(evidence, "getRunRecord").mockImplementation(async (...args) => {
+  vi.spyOn(evidence, "getRunRecord").mockImplementation(async (runsDirectory: string, runId: string, ...rest) => {
     await finished;
-    await new Promise(resolve => setTimeout(resolve, 30));
+    // Poll for the child's summary on disk instead of a fixed sleep: under CI
+    // load the child can take longer than any fixed delay to settle.
+    const summaryPath = join(runsDirectory, runId, "summary.json");
+    const deadline = Date.now() + 10_000;
+    while (!existsSync(summaryPath) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
     if (mode === "unreadable") throw new Error("EACCES evidence probe");
-    return original(...args);
+    return original(runsDirectory, runId, ...rest);
   });
   let receipt: any;
   const {session, registration} = await createSession({codemode:true,

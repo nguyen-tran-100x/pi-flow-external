@@ -47,6 +47,7 @@ export interface CreateWorkflowToolOptions {
   getThinkingLevel: () => ReturnType<ExtensionAPI["getThinkingLevel"]>;
   getSubagentTimeoutMs: () => number;
   updateStatus: (ctx: ExtensionContext, toolCallId: string, usage: SubagentUsage) => void;
+  onSessionContext?: (ctx: ExtensionContext, sessionId: string) => void;
   getDefaultPermission: () => PermissionTier;
   getDefaultHarness: (ctx: ExtensionContext) => string;
   getDefaultMaxBudgetUsd: () => number | undefined;
@@ -146,6 +147,7 @@ export function createWorkflowTool(
       return await withContract<WorkflowToolDetails>({ tool: EXTERNAL_WORKFLOW_TOOL, action: "run", failureData: { run: null }, redact: true }, async () => {
       const parentMessages = captureParentContext(ctx.sessionManager);
       const sessionId = ctx.sessionManager?.getSessionId?.() ?? `unpersisted:${toolCallId}`;
+      options.onSessionContext?.(ctx, sessionId);
       const sessionVersion = options.registry.sessionVersion(sessionId);
       const project = resolve(ctx.cwd);
       // modelRegistry must survive into the execution context: the pi backend
@@ -615,6 +617,7 @@ export function createWorkflowTool(
           sessionId,
           sessionVersion,
           project,
+          background,
           ...(background ? {} : { signal }),
           run: executeWorkflow,
           outcome: (result, workflowSignal) => ({
