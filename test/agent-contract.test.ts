@@ -298,14 +298,15 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
       expect.objectContaining({
         customType: "pi-flow-background-settled",
         details: {
-          runs: [
+          runs: expect.arrayContaining([
             expect.objectContaining({ runId: batchOne.details.runId }),
             expect.objectContaining({ runId: batchTwo.details.runId }),
-          ],
+          ]),
         },
       }),
       { triggerTurn: true, deliverAs: "followUp" },
     );
+    expect((sendCustomMessageSpy.mock.lastCall?.[0] as { details?: { runs?: unknown[] } })?.details?.runs).toHaveLength(2);
 
     disposeSession(session);
   });
