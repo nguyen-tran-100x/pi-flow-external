@@ -189,4 +189,83 @@ describe("RunRegistry", () => {
     expect(terminal).toMatchObject({ status: "aborted", outcome: "timed_out", error: "deadline exceeded" });
     expect(terminal).not.toHaveProperty("result");
   });
+
+  it("emits background root events and suppresses wake delivery for waited, collected, cancelled, or closed-session runs", async () => {
+    const registry = new RunRegistry();
+    registry.openSession("session-a");
+    const events: Array<{ type: string; runId: string; suppressed: boolean }> = [];
+    registry.onBackgroundEvent((event) => {
+      events.push({ type: event.type, runId: event.entry.runId, suppressed: event.suppressed });
+    });
+
+    const fg = deferred<string>();
+    const child = deferred<string>();
+    const bgNatural = deferred<string>();
+    const bgWaited = deferred<string>();
+    const bgCancelled = deferred<string>();
+
+    registry.start({ runId: "run_fg", kind: "agent", sessionId: "session-a", project: "/repo", run: () => fg.promise });
+    registry.start({
+      runId: "run_child",
+      kind: "agent",
+      sessionId: "session-a",
+      project: "/repo",
+      workflowRunId: "wf_root",
+      background: true,
+      run: () => child.promise,
+    });
+    const naturalRun = registry.start({
+      runId: "wf_natural",
+      kind: "workflow",
+      sessionId: "session-a",
+      project: "/repo",
+      background: true,
+      run: () => bgNatural.promise,
+    });
+    const waitedRun = registry.start({
+      runId: "run_waited",
+      kind: "agent",
+      sessionId: "session-a",
+      project: "/repo",
+      background: true,
+      run: () => bgWaited.promise,
+    });
+    const cancelledRun = registry.start({
+      runId: "run_cancelled",
+      kind: "agent",
+      sessionId: "session-a",
+      project: "/repo",
+      background: true,
+      run: (signal) => new Promise((_res, rej) => signal.addEventListener("abort", () => rej(new Error("cancelled")), { once: true })),
+    });
+
+    expect(registry.listBackgroundRoots("session-a").map((r) => r.runId)).toEqual([
+      "wf_natural",
+      "run_waited",
+      "run_cancelled",
+    ]);
+
+    const waitPromise = registry.wait(["run_waited"], "all");
+    bgWaited.resolve("waited-ok");
+    await waitPromise;
+    await waitedRun.result;
+
+    registry.cancel("run_cancelled", "user cancelled");
+    await expect(cancelledRun.result).rejects.toThrow("cancelled");
+
+    fg.resolve("fg-ok");
+    child.resolve("child-ok");
+    bgNatural.resolve("natural-ok");
+    await naturalRun.result;
+
+    expect(registry.listBackgroundRoots("session-a")).toEqual([]);
+    expect(events).toEqual([
+      { type: "started", runId: "wf_natural", suppressed: false },
+      { type: "started", runId: "run_waited", suppressed: false },
+      { type: "started", runId: "run_cancelled", suppressed: false },
+      { type: "settled", runId: "run_waited", suppressed: true },
+      { type: "settled", runId: "run_cancelled", suppressed: true },
+      { type: "settled", runId: "wf_natural", suppressed: false },
+    ]);
+  });
 });

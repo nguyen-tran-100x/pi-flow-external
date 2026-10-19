@@ -101,7 +101,7 @@ return { run, view, encoding, text, checklist };
 - **Foreground interruption:** interrupting the original blocking call cancels that work.
 - **Wait interruption:** interrupting `external_runs wait` only stops waiting; it does not cancel the selected runs. Use `external_runs cancel` to stop background work. Cancellation requests are not proof of completed cleanup; check settlement.
 - **Workflow cancellation:** cancelling the root stops its active children. Cancelling one child throws a catchable child error; a script that handles it may continue.
-- **No automatic delivery:** ending a turn does not stop background work; it continues in the owning session. Background completion does not notify, wake, or resume the parent.
+- **Status bar & completion wake-up:** ending a turn does not stop background work; it continues in the owning session. UI sessions display active background root runs in the status bar (`pi-flow-runs`), show a completion notification, and queue a debounced follow-up wake message (`pi-flow-background-settled`) when an uncollected background root run settles across turns. Runs already collected in the turn or cancelled by the caller do not send a wake message.
 - **Not a persistent service:** keep the owning Pi session open. Orderly shutdown requests cancellation and waits for bounded cleanup. Crashes or force-kills leave unfinished evidence `interrupted_or_uncertain`; restarting Pi never adopts live orphan work.
 
 ---

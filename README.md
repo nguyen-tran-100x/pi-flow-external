@@ -149,12 +149,12 @@ Both `external_delegate` and `external_workflow` support these modes:
 | | Foreground (default) | Background (`background: true`) |
 |---|---|---|
 | Original call returns | When the work finishes or fails | After registration, with a run ID; work may already have finished |
-| Progress | Live execution card | A static launch receipt; inspect with `/external runs` or ask Pi for status |
+| Progress | Live execution card | A static launch receipt plus a live status bar count (`pi-flow N bg`); inspect with `/external runs` |
 | Next step | Pi checks the returned outcome | Pi keeps the run ID and does independent work before collecting, or reports the ID and switches tasks/ends its turn if left running across turns |
 
 > **You:** "Have Claude audit the API in the background while we review the release checklist. Then bring me the findings."
 
-- **No automatic completion message:** background work does not notify or wake the parent. Pi collects once its independent work is done; if you ask to leave work running or check back later, Pi reports the run ID and proceeds or ends its turn without waiting.
+- **Status bar & completion wake-up:** UI sessions show active background runs in the footer status bar, notify on completion, and automatically queue a follow-up wake message when an uncollected background run finishes across turns. If Pi already collected the run in the same turn, no duplicate message is sent.
 - **Keep Pi open:** background work belongs to its originating session, not a persistent service. Orderly shutdown requests cancellation with bounded cleanup; restart does not adopt unfinished work.
 - **Stopping is different from waiting:** interrupting the original foreground call cancels it. Interrupting `external_runs wait` only stops waiting; use `/external runs` or `external_runs cancel` to stop background work.
 

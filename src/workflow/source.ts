@@ -20,7 +20,7 @@ import type { WorkflowCachedAgentResult, WorkflowMetaPhase } from "./types.ts";
 
 export const workflowToolParameters = Type.Object({
   background: Type.Optional(Type.Boolean({
-    description: "Defaults to false: wait for settlement. True returns a stable session-owned workflow handle after registration; work may already be settled. Pass true when you have independent local work to do first (do it, then call external_runs wait), or when the user asks to leave work running across turns (report the runId and do not call external_runs wait this turn). No completion notification; keep the owning session open.",
+    description: "Defaults to false: wait for settlement. True returns a stable session-owned workflow handle after registration; work may already be settled. Pass true when you have independent local work to do first (do it, then call external_runs wait), or when the user asks to leave work running across turns (report the runId and do not call external_runs wait this turn). UI sessions show active background runs in the status bar and wake the session when an uncollected run settles across turns. Keep the owning session open.",
   })),
   script: Type.Optional(
     Type.String({

@@ -1,6 +1,7 @@
 import { ExpectedFlowError } from "./core/errors.ts";
 import { agentOutputSchema, agentReceipt } from "./contract/agent.ts";
 import type { PublicError } from "./contract/envelope.ts";
+import { liveAgentRun, liveWorkflowRun, type PublicRun } from "./contract/run.ts";
 import { getRunRecord } from "./core/run-inspection.ts";
 import { redactSecrets } from "./core/run-record.ts";
 import {
@@ -66,6 +67,9 @@ const DEFAULT_SUBAGENT_TIMEOUT_MS = DEFAULT_EXTERNAL_SETTINGS.subagentTimeoutMs;
 const MAX_CONCURRENT_SUBAGENTS_FLAG = "max-concurrent-subagents";
 const SUBAGENT_TIMEOUT_MS_FLAG = "subagent-timeout-ms";
 const STATUS_KEY = "pi-flow";
+const BG_STATUS_KEY = "pi-flow-runs";
+const BACKGROUND_SETTLED_CUSTOM_TYPE = "pi-flow-background-settled";
+const DEFAULT_BACKGROUND_WAKE_DEBOUNCE_MS = 150;
 
 export const agentToolParameters = Type.Object({
   context: Type.Optional(parentContextSchema),
@@ -76,7 +80,7 @@ export const agentToolParameters = Type.Object({
     description: "The task briefing to send to the subagent.",
   }),
   background: Type.Optional(Type.Boolean({
-    description: "Defaults to false: wait for settlement. True returns a stable session-owned run handle after registration; work may already be settled. Pass true when you have independent local work to do first (do it, then call external_runs wait), or when the user asks to leave work running across turns (report the runId and do not call external_runs wait this turn). No completion notification; keep the owning session open.",
+    description: "Defaults to false: wait for settlement. True returns a stable session-owned run handle after registration; work may already be settled. Pass true when you have independent local work to do first (do it, then call external_runs wait), or when the user asks to leave work running across turns (report the runId and do not call external_runs wait this turn). UI sessions show active background runs in the status bar and wake the session when an uncollected run settles across turns. Keep the owning session open.",
   })),
   role: Type.Optional(Type.String({
     minLength: 1,
@@ -162,6 +166,7 @@ interface CreateAgentToolOptions {
   /** Effective default harness for render paths: cwd only, no trust signal. */
   getDefaultHarness: (cwd: string) => string;
   updateStatus: (ctx: ExtensionContext, toolCallId: string, usage: SubagentUsage) => void;
+  onSessionContext?: (ctx: ExtensionContext, sessionId: string) => void;
 }
 
 const PROGRESS_STATUSES: SubagentProgressNode["status"][] = ["queued", "running", "done", "error", "aborted"];
@@ -282,6 +287,32 @@ function getUsageTotals(state: SubagentUsageStatusState): SubagentUsage {
 
 function formatUsageStatus(totals: SubagentUsage, theme: Theme): string {
   return `${theme.fg("dim", "pi-flow ")}${theme.fg("dim", formatUsage(totals))}`;
+}
+
+function formatBackgroundRunsStatus(roots: RegisteredRunEntry[], theme?: Theme): string | undefined {
+  if (roots.length === 0) return undefined;
+  const ids = roots.slice(0, 2).map((r) => r.runId.slice(-8)).join(", ") + (roots.length > 2 ? ", …" : "");
+  const text = `pi-flow ${roots.length} bg (${ids})`;
+  return typeof theme?.fg === "function" ? theme.fg("accent", text) : text;
+}
+
+function buildBackgroundWakePayload(entries: RegisteredRunEntry[]): { text: string; runs: PublicRun[] } {
+  const runs = entries.map((entry) =>
+    (entry.kind === "workflow" ? liveWorkflowRun(entry, { inlineBudget: 0 }) : liveAgentRun(entry, { inlineBudget: 0 })).run,
+  );
+  const lines = runs.map((run) => {
+    const label = run.task.name ?? run.task.description ?? run.kind;
+    const outcome = run.state.outcome ?? run.state.status;
+    const view = outcome === "succeeded" ? "final" : "diagnostics";
+    const failedChildren = run.children?.failed ? ` (${run.children.failed} handled child failure(s))` : "";
+    return `- ${run.runId} (${run.kind} "${label}"): ${outcome}${failedChildren} — inspect with external_runs { action: "inspect", runIds: ["${run.runId}"], view: "${view}" }`;
+  });
+  const rawText = [
+    "Background run(s) settled:",
+    ...lines,
+    "Use external_runs inspect (view: \"final\" for succeeded runs, \"diagnostics\" or \"output\" for failed runs) to read the results and report back to the user.",
+  ].join("\n");
+  return redactSecrets({ text: rawText, runs }) as { text: string; runs: PublicRun[] };
 }
 
 function publishUsageStatus(ctx: ExtensionContext, state: SubagentUsageStatusState): void {
@@ -454,6 +485,7 @@ function createAgentTool(
 
       const queuedAt = Date.now();
       const sessionId = ctx.sessionManager?.getSessionId?.() ?? `unpersisted:${toolCallId}`;
+      options.onSessionContext?.(ctx, sessionId);
       const sessionVersion = state.registry.sessionVersion(sessionId);
       const project = resolve(ctx.cwd);
       // modelRegistry must survive into the execution context: the pi backend
@@ -595,6 +627,7 @@ function createAgentTool(
         sessionId,
         sessionVersion,
         project,
+        background,
         ...(background ? {} : { signal }),
         run: executeRun,
         outcome: (result, runSignal) => {
@@ -776,6 +809,97 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
       return rootState;
     };
     const usageStatusState = createUsageStatusState();
+    const wakeDebounceMs = options.backgroundWakeDebounceMs ?? DEFAULT_BACKGROUND_WAKE_DEBOUNCE_MS;
+    let activeSessionId: string | undefined;
+    let activeUiCtx: ExtensionContext | undefined;
+    let inAgentTurn = false;
+    let wakeTimer: ReturnType<typeof setTimeout> | undefined;
+    const pendingWakeBySession = new Map<string, Map<string, { entry: RegisteredRunEntry; sessionVersion: number }>>();
+
+    const rememberSessionContext = (ctx: ExtensionContext, sessionId = ctx.sessionManager?.getSessionId?.()) => {
+      if (sessionId) activeSessionId = sessionId;
+      if (ctx.hasUI || !activeUiCtx) activeUiCtx = ctx;
+    };
+
+    const updateBackgroundStatus = (sessionId = activeSessionId) => {
+      if (!sessionId || sessionId !== activeSessionId || !activeUiCtx?.hasUI || typeof activeUiCtx.ui?.setStatus !== "function") return;
+      const roots = rootState.registry.listBackgroundRoots(sessionId);
+      activeUiCtx.ui.setStatus(BG_STATUS_KEY, formatBackgroundRunsStatus(roots, activeUiCtx.ui.theme));
+    };
+
+    const clearWakeTimer = () => {
+      if (wakeTimer) {
+        clearTimeout(wakeTimer);
+        wakeTimer = undefined;
+      }
+    };
+
+    const flushPendingWakes = (sessionId: string) => {
+      if (inAgentTurn || sessionId !== activeSessionId) return;
+      const pending = pendingWakeBySession.get(sessionId);
+      if (!pending || pending.size === 0) return;
+      pendingWakeBySession.delete(sessionId);
+      const uncollected = [...pending.values()].filter(
+        (item) =>
+          !rootState.registry.isCollected(item.entry.runId) &&
+          rootState.registry.isSessionActive(sessionId, item.sessionVersion),
+      );
+      if (uncollected.length === 0) return;
+      for (const item of uncollected) rootState.registry.markCollected(item.entry.runId);
+      const payload = buildBackgroundWakePayload(uncollected.map((item) => item.entry));
+      pi.sendMessage(
+        {
+          customType: BACKGROUND_SETTLED_CUSTOM_TYPE,
+          content: [{ type: "text", text: payload.text }],
+          display: true,
+          details: { runs: payload.runs },
+        },
+        { triggerTurn: true, deliverAs: "followUp" },
+      );
+    };
+
+    const scheduleWakeFlush = (sessionId: string) => {
+      if (inAgentTurn || sessionId !== activeSessionId) return;
+      const pending = pendingWakeBySession.get(sessionId);
+      if (!pending || pending.size === 0) return;
+      clearWakeTimer();
+      wakeTimer = setTimeout(() => {
+        wakeTimer = undefined;
+        flushPendingWakes(sessionId);
+      }, wakeDebounceMs);
+      (wakeTimer as { unref?: () => void }).unref?.();
+    };
+
+    rootState.registry.onBackgroundEvent((event) => {
+      updateBackgroundStatus(event.entry.sessionId);
+      if (event.type !== "settled") return;
+      if (event.suppressed) {
+        pendingWakeBySession.get(event.entry.sessionId)?.delete(event.entry.runId);
+        return;
+      }
+      if (
+        activeUiCtx?.hasUI &&
+        activeSessionId === event.entry.sessionId &&
+        typeof activeUiCtx.ui?.notify === "function"
+      ) {
+        const outcome = event.entry.outcome?.outcome ?? "settled";
+        const label = event.entry.kind === "workflow" ? "Background workflow" : "Background subagent";
+        activeUiCtx.ui.notify(
+          redactSecrets(`${label} ${event.entry.runId} ${outcome}.`) as string,
+          outcome === "succeeded" ? "info" : "warning",
+        );
+      }
+      const shouldWake = options.backgroundWake ?? Boolean(activeUiCtx?.hasUI);
+      if (!shouldWake) return;
+      let sessionPending = pendingWakeBySession.get(event.entry.sessionId);
+      if (!sessionPending) {
+        sessionPending = new Map();
+        pendingWakeBySession.set(event.entry.sessionId, sessionPending);
+      }
+      sessionPending.set(event.entry.runId, { entry: event.entry, sessionVersion: event.sessionVersion });
+      scheduleWakeFlush(event.entry.sessionId);
+    });
+
     const toolOptions: CreateAgentToolOptions = {
       getLimiter: () => syncMaxConcurrentSubagents().limiter,
       getThinkingLevel: () => pi.getThinkingLevel(),
@@ -788,6 +912,7 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
         }
         updateUsageStatus(usageStatusState, ctx, toolCallId, usage);
       },
+      onSessionContext: rememberSessionContext,
     };
 
     pi.registerTool(createAgentTool(syncMaxConcurrentSubagents, toolOptions));
@@ -856,12 +981,30 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
             }
             updateUsageStatus(usageStatusState, ctx, toolCallId, usage);
           },
+          onSessionContext: rememberSessionContext,
         }),
       );
     }
 
+    pi.on("agent_start", (_event, ctx) => {
+      rememberSessionContext(ctx);
+      inAgentTurn = true;
+      clearWakeTimer();
+    });
+
+    pi.on("agent_end", (_event, ctx) => {
+      rememberSessionContext(ctx);
+      inAgentTurn = false;
+      if (activeSessionId) scheduleWakeFlush(activeSessionId);
+    });
+
     pi.on("session_start", (_event, ctx) => {
-      rootState.registry.openSession(ctx.sessionManager.getSessionId());
+      const sessionId = ctx.sessionManager.getSessionId();
+      rememberSessionContext(ctx, sessionId);
+      inAgentTurn = false;
+      clearWakeTimer();
+      pendingWakeBySession.clear();
+      rootState.registry.openSession(sessionId);
       syncMaxConcurrentSubagents();
       usageStatusState.calls.clear();
       usageStatusState.latestCacheHitRate = undefined;
@@ -869,12 +1012,23 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
       void pruneRunRecords(runRecordsDirectory(), rootState.maxRunRecords).catch(() => undefined);
       if (ctx.hasUI) {
         ctx.ui.setStatus(STATUS_KEY, undefined);
+        ctx.ui.setStatus(BG_STATUS_KEY, undefined);
       }
     });
 
     pi.on("session_shutdown", async (_event, ctx) => {
+      const sessionId = ctx.sessionManager.getSessionId();
+      clearWakeTimer();
+      pendingWakeBySession.delete(sessionId);
+      if (activeSessionId === sessionId) {
+        activeSessionId = undefined;
+        activeUiCtx = undefined;
+      }
       for (const controller of readinessControllers) controller.abort(new Error('Session shutting down'));
-      const cleanup = await rootState.registry.shutdownSession(ctx.sessionManager.getSessionId());
+      const cleanup = await rootState.registry.shutdownSession(sessionId);
+      if (ctx.hasUI) {
+        ctx.ui.setStatus(BG_STATUS_KEY, undefined);
+      }
       if (cleanup.pending.length && ctx.hasUI) {
         const shown = cleanup.pending.slice(0, 10);
         ctx.ui.notify(`External run cleanup could not be confirmed for ${shown.join(", ")}${cleanup.pending.length > shown.length ? ` and ${cleanup.pending.length - shown.length} more` : ""}; their evidence is interrupted or uncertain.`, "warning");
@@ -882,6 +1036,9 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
     });
 
     pi.on("before_agent_start", (event, ctx) => {
+      rememberSessionContext(ctx);
+      inAgentTurn = true;
+      clearWakeTimer();
       const tools = pi.getAllTools();
       if (!tools.some((tool) => tool.name === EXTERNAL_DELEGATE_TOOL)) {
         return;

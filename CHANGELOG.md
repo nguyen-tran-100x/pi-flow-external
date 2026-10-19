@@ -2,6 +2,14 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.1.0-external.0] - 2026-10-19
+
+### Added
+- Live background run status bar (`pi-flow-runs`), completion notifications, and debounced follow-up wake messages (`pi-flow-background-settled`) for UI sessions:
+  - Active background root runs (`external_delegate` and `external_workflow` launched with `background: true`) display a live footer indicator (`pi-flow N bg (...)`) without colliding with usage reporting (`pi-flow`) or double-counting workflow child tasks.
+  - When an uncollected background root run settles across a turn boundary, UI sessions emit a completion notice and queue a debounced follow-up wake message (`deliverAs: "followUp"`) carrying the redacted `PublicRun` summary and `external_runs` inspection command.
+  - Wake delivery is automatically suppressed for foreground runs, workflow children, caller cancellations (`external_runs cancel`), closed or switched sessions, and runs already collected in the turn via `external_runs wait` or `inspect`.
+
 ## [5.0.1-external.0] - 2026-10-19
 
 ### Changed

@@ -20,9 +20,17 @@ export interface RegisteredRunEntry {
   sessionId: string;
   project: string;
   workflowRunId?: string;
+  background?: boolean;
   state: RegisteredRunState;
   observation?: unknown;
   outcome?: RegisteredRunOutcome;
+}
+
+export interface BackgroundRunEvent {
+  type: "started" | "settled";
+  entry: RegisteredRunEntry;
+  sessionVersion: number;
+  suppressed: boolean;
 }
 
 export interface RegisteredRunHandle<T> {
@@ -31,6 +39,10 @@ export interface RegisteredRunHandle<T> {
 }
 
 interface InternalEntry extends RegisteredRunEntry {
+  sessionVersion: number;
+  background: boolean;
+  collected: boolean;
+  userCancelled: boolean;
   controller: AbortController;
   terminal: Promise<RegisteredRunOutcome>;
   resolveTerminal: (outcome: RegisteredRunOutcome) => void;
@@ -45,6 +57,7 @@ export interface StartRegisteredRun<T> {
   sessionVersion?: number;
   project: string;
   workflowRunId?: string;
+  background?: boolean;
   signal?: AbortSignal;
   run: (signal: AbortSignal) => Promise<T> | T;
   outcome?: (result: T, signal: AbortSignal) => Omit<RegisteredRunOutcome, "runId" | "kind" | "settledAt">;
@@ -62,8 +75,10 @@ const DEFAULT_COMPLETED_LIMIT = 100;
 export class RunRegistry {
   private readonly entries = new Map<string, InternalEntry>();
   private readonly completed: string[] = [];
+  private readonly collectedIds = new Set<string>();
   private readonly sessionVersions = new Map<string, number>();
   private readonly closedSessions = new Set<string>();
+  private readonly backgroundListeners = new Set<(event: BackgroundRunEvent) => void>();
 
   constructor(private readonly completedLimit = DEFAULT_COMPLETED_LIMIT, private readonly shutdownGraceMs = 4_000) {
     if (!Number.isInteger(completedLimit) || completedLimit < 0) {
@@ -97,8 +112,12 @@ export class RunRegistry {
       runId: params.runId,
       kind: params.kind,
       sessionId: params.sessionId,
+      sessionVersion: params.sessionVersion ?? this.sessionVersion(params.sessionId),
       project: params.project,
       ...(params.workflowRunId ? { workflowRunId: params.workflowRunId } : {}),
+      background: params.background === true,
+      collected: false,
+      userCancelled: false,
       state: "running",
       controller,
       terminal,
@@ -107,6 +126,9 @@ export class RunRegistry {
       listeners: new Set(),
     };
     this.entries.set(entry.runId, entry);
+    if (entry.background && !entry.workflowRunId) {
+      this.emitBackground({ type: "started", entry: this.publicEntry(entry), sessionVersion: entry.sessionVersion, suppressed: false });
+    }
 
     const abortFromCaller = () => controller.abort(params.signal?.reason);
     if (params.signal?.aborted) abortFromCaller();
@@ -168,6 +190,35 @@ export class RunRegistry {
       .map((entry) => this.publicEntry(entry));
   }
 
+  listBackgroundRoots(sessionId: string): RegisteredRunEntry[] {
+    return [...this.entries.values()]
+      .filter((entry) => entry.sessionId === sessionId && entry.background && !entry.workflowRunId && entry.state === "running")
+      .map((entry) => this.publicEntry(entry));
+  }
+
+  onBackgroundEvent(listener: (event: BackgroundRunEvent) => void): () => void {
+    this.backgroundListeners.add(listener);
+    return () => this.backgroundListeners.delete(listener);
+  }
+
+  markCollected(runId: string): void {
+    if (this.collectedIds.size >= 512 && !this.collectedIds.has(runId)) {
+      const oldest = this.collectedIds.values().next().value;
+      if (oldest) this.collectedIds.delete(oldest);
+    }
+    this.collectedIds.add(runId);
+    const entry = this.entries.get(runId);
+    if (entry) entry.collected = true;
+  }
+
+  isCollected(runId: string): boolean {
+    return this.collectedIds.has(runId) || Boolean(this.entries.get(runId)?.collected);
+  }
+
+  isSessionActive(sessionId: string, sessionVersion?: number): boolean {
+    return !this.closedSessions.has(sessionId) && (sessionVersion === undefined || this.sessionVersion(sessionId) === sessionVersion);
+  }
+
   update(runId: string, observation: unknown): void {
     const entry = this.entries.get(runId);
     if (entry && entry.state === "running") entry.observation = observation;
@@ -176,6 +227,8 @@ export class RunRegistry {
   cancel(runId: string, reason = "run cancelled"): "requested" | "terminal" | "unknown" {
     const entry = this.entries.get(runId);
     if (!entry) return "unknown";
+    entry.userCancelled = true;
+    this.markCollected(runId);
     if (entry.state === "terminal") return "terminal";
     entry.controller.abort(new Error(reason));
     return "requested";
@@ -216,6 +269,7 @@ export class RunRegistry {
       const check = () => {
         const terminal = entries.flatMap((entry) => entry.outcome ? [entry.outcome] : []);
         if ((mode === "any" && terminal.length > 0) || (mode === "all" && terminal.length === entries.length)) {
+          for (const outcome of terminal) this.markCollected(outcome.runId);
           cleanup();
           resolve({ terminal, pending: entries.filter((entry) => !entry.outcome).map((entry) => entry.runId) });
         }
@@ -237,17 +291,33 @@ export class RunRegistry {
 
   private settle(entry: InternalEntry, outcome: RegisteredRunOutcome): void {
     if (entry.state === "terminal") return;
+    const activelyWaited = entry.listeners.size > 0;
+    if (activelyWaited) this.markCollected(entry.runId);
     entry.state = "terminal";
     entry.outcome = outcome;
     entry.resolveTerminal(outcome);
     for (const listener of [...entry.listeners]) listener(outcome);
     entry.listeners.clear();
-    if (this.entries.get(entry.runId) !== entry) return;
+    const isCurrent = this.entries.get(entry.runId) === entry;
+    if (entry.background && !entry.workflowRunId) {
+      const suppressed =
+        !isCurrent ||
+        entry.collected ||
+        this.collectedIds.has(entry.runId) ||
+        entry.userCancelled ||
+        !this.isSessionActive(entry.sessionId, entry.sessionVersion);
+      this.emitBackground({ type: "settled", entry: this.publicEntry(entry), sessionVersion: entry.sessionVersion, suppressed });
+    }
+    if (!isCurrent) return;
     this.completed.push(entry.runId);
     while (this.completed.length > this.completedLimit) {
       const evicted = this.completed.shift();
       if (evicted) this.entries.delete(evicted);
     }
+  }
+
+  private emitBackground(event: BackgroundRunEvent): void {
+    for (const listener of [...this.backgroundListeners]) listener(event);
   }
 
   private publicEntry(entry: InternalEntry): RegisteredRunEntry {
@@ -257,6 +327,7 @@ export class RunRegistry {
       sessionId: entry.sessionId,
       project: entry.project,
       ...(entry.workflowRunId ? { workflowRunId: entry.workflowRunId } : {}),
+      ...(entry.background ? { background: true } : {}),
       state: entry.state,
       ...(entry.observation !== undefined ? { observation: entry.observation } : {}),
       ...(entry.outcome ? { outcome: entry.outcome } : {}),

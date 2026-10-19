@@ -76,6 +76,13 @@ export interface SubagentExtensionOptions {
    * one product, two entry points. Set to false for a subagents-only surface.
    */
   workflow?: boolean;
+  /**
+   * Automatically wake the parent session with a follow-up message when an
+   * uncollected background root run settles across a turn. Defaults to `ctx.hasUI`.
+   */
+  backgroundWake?: boolean;
+  /** Debounce window in milliseconds for batching background completion wake-ups (default: 150). */
+  backgroundWakeDebounceMs?: number;
 }
 
 export type FlowExtensionOptions = SubagentExtensionOptions;

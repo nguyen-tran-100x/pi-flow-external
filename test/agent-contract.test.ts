@@ -148,8 +148,18 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     chmodSync(fakeCodex, 0o755);
     process.env.PATH = `${binDir}:${originalPathEnv ?? ""}`;
 
+    const statusUpdates: Array<[string, string | undefined]> = [];
+    const notifications: Array<[string, string | undefined]> = [];
     const { session, model, modelRegistry } = await createSession();
-    const context = makeExecutionContext({ hasUI: false, model, modelRegistry, persistedSession: true }) as any;
+    const sendCustomMessageSpy = vi.spyOn(session as any, "sendCustomMessage").mockResolvedValue(undefined);
+    const context = makeExecutionContext({
+      hasUI: true,
+      model,
+      modelRegistry,
+      persistedSession: true,
+      onStatus: (key, text) => statusUpdates.push([key, text]),
+    }) as any;
+    context.ui.notify = (msg: string, level?: string) => notifications.push([msg, level]);
     context.sessionManager.getBranch = () => [];
     const agent = session.getToolDefinition("external_delegate") as any;
     const directUpdate = vi.fn();
@@ -161,6 +171,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
       context,
     );
     expect(direct.details).toMatchObject({ status: "queued", runId: expect.stringMatching(/^run_/) });
+    expect(statusUpdates).toContainEqual(["pi-flow-runs", `pi-flow 1 bg (${direct.details.runId.slice(-8)})`]);
     await vi.waitFor(() => {
       expect(existsSync(startedPath)).toBe(true);
       expect(readFileSync(startedPath, "utf8")).toContain("direct background");
@@ -172,7 +183,18 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     await vi.waitFor(() => {
       const summary = JSON.parse(readFileSync(join(direct.details.recordPath, "summary.json"), "utf8"));
       expect(summary.summary.status).toBe("done");
+      expect(sendCustomMessageSpy).toHaveBeenCalledTimes(1);
     });
+    expect(statusUpdates.at(-1)).toEqual(["pi-flow-runs", undefined]);
+    expect(notifications).toContainEqual([`Background subagent ${direct.details.runId} succeeded.`, "info"]);
+    expect(sendCustomMessageSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        customType: "pi-flow-background-settled",
+        display: true,
+        details: { runs: [expect.objectContaining({ runId: direct.details.runId, kind: "agent" })] },
+      }),
+      { triggerTurn: true, deliverAs: "followUp" },
+    );
 
     const blocking = await agent.execute(
       "blocking-agent",
@@ -182,6 +204,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
       context,
     );
     expect(blocking.details).toMatchObject({ status: "done", result: "finished direct blocking" });
+    expect(sendCustomMessageSpy).toHaveBeenCalledTimes(1);
 
     const workflow = session.getToolDefinition("external_workflow") as any;
     const workflowUpdate = vi.fn();
@@ -196,6 +219,7 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
       context,
     );
     expect(backgroundWorkflow.details).toMatchObject({ status: "running", runId: expect.stringMatching(/^wf_/) });
+    expect(statusUpdates).toContainEqual(["pi-flow-runs", `pi-flow 1 bg (${backgroundWorkflow.details.runId.slice(-8)})`]);
     await vi.waitFor(() => {
       expect(existsSync(startedPath)).toBe(true);
       expect(readFileSync(startedPath, "utf8")).toContain("workflow background");
@@ -203,7 +227,20 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
     expect(existsSync(workflowRelease)).toBe(false);
     expect(workflowUpdate).not.toHaveBeenCalled();
     writeFileSync(workflowRelease, "go");
-    await vi.waitFor(() => expect(readFileSync(backgroundWorkflow.details.journalPath, "utf8")).toContain('"type":"run_complete"'));
+    await vi.waitFor(() => {
+      expect(readFileSync(backgroundWorkflow.details.journalPath, "utf8")).toContain('"type":"run_complete"');
+      expect(sendCustomMessageSpy).toHaveBeenCalledTimes(2);
+    });
+    expect(statusUpdates.at(-1)).toEqual(["pi-flow-runs", undefined]);
+    expect(notifications).toContainEqual([`Background workflow ${backgroundWorkflow.details.runId} succeeded.`, "info"]);
+    expect(sendCustomMessageSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        customType: "pi-flow-background-settled",
+        display: true,
+        details: { runs: [expect.objectContaining({ runId: backgroundWorkflow.details.runId, kind: "workflow" })] },
+      }),
+      { triggerTurn: true, deliverAs: "followUp" },
+    );
 
     disposeSession(session);
   });
