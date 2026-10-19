@@ -2,6 +2,14 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.0.1-external.0] - 2026-10-19
+
+### Changed
+- Clarified background execution guidance across the coordinator prompt, `external_help` (`usage` and `workflow`), tool parameter descriptions, background launch receipts, and docs:
+  - When the parent has independent local work (`read`, `edit`, `bash`) that does not touch files the delegated run may change, pass `background: true` and complete that local work before calling `external_runs wait`.
+  - Ending a turn does not stop a background run: when the user asks to leave work running, switch tasks, or check back later, report the `runId` and proceed with the other task or end the turn without calling `external_runs wait`.
+  - Background launch receipts for `external_delegate` and `external_workflow` now instruct the model to finish independent local work or report the `runId` and proceed/end its turn before calling `external_runs`, avoiding an immediate-wait reflex.
+
 ## [5.0.0-external.0] - 2026-10-15
 
 ### Breaking

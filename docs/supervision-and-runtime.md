@@ -35,9 +35,9 @@ Workspace /path/to/project
 
 **Foreground is the default:** omit `background` or set it to `false`. The original `external_delegate` or `external_workflow` call waits for settlement and returns the result or failure. Its live card carries progress while the parent waits.
 
-**Background returns a handle:** set `background: true` when the parent has useful independent work before collection, or the user explicitly requests background execution. The receipt confirms registration, not completion; a fast run may already be settled. The launch receipt is not a live monitor. Use `/external runs` to browse, or `external_runs` to inspect, wait, or cancel.
+**Background returns a handle:** set `background: true` when the parent has independent local work to do first, or when the user asks to run in the background, switch tasks, or check back in a later turn. The receipt confirms registration, not completion; a fast run may already be settled. The launch receipt is not a live monitor. Use `/external runs` to browse, or `external_runs` to inspect, wait, or cancel.
 
-Use foreground when the result is needed next—even for a long workflow or parallel children. Do not routinely launch background then immediately wait. Both modes support `parallel()` under the same concurrency limiter; neither changes permission boundaries or budget enforcement. Prompt instructions express intent, not an enforced restriction.
+Use foreground when the result is needed next—even for a long workflow or parallel children. Never launch background then immediately wait; do your independent work first, or if leaving the run active across turns, report the run ID and proceed or end your turn without waiting. Both modes support `parallel()` under the same concurrency limiter; neither changes permission boundaries or budget enforcement. Prompt instructions express intent, not an enforced restriction.
 
 ### Background Example: Launch → Independent Work → Collect
 
@@ -94,14 +94,14 @@ return { run, view, encoding, text, checklist };
 - **Check the run, not just `ok`.** `wait.ok` means supervision worked, even if a child failed. Read each `completed[i].state.outcome` and all `pending` IDs. With multiple targets, a failed workflow can return early even in `mode: "all"`; pending work continues. Keep collecting it unless the user defers, or cancel it explicitly.
 - **Avoid redundant calls.** If settlement is already known, inspect directly rather than wait again. Successful inline output needs no second fetch. A successful workflow can still have `children.failed` when the script handled child errors; check the returned reports.
 - **Read every page.** Otherwise use `final` for verified success or `diagnostics`/`output` for failure. `final` is empty without verified success. Follow `page.nextCursor`, concatenate text, and only then parse if `encoding` is `json`. Workflow final JSON wraps the value in `{ runId, result, finalAvailable }`; agent finals are text.
-- **Keep ownership.** The parent retains IDs and collects/checks results unless the user explicitly defers collection. A script's local variables do not survive a separate codemode call; pass the retained handle or ID explicitly. If independent work or collection fails, report any still-running IDs rather than abandoning them silently. Never retry a child automatically.
+- **Keep ownership.** The parent retains IDs and collects/checks results after its independent work finishes, unless the user asks to leave work running or check back later—in which case it reports the IDs and switches tasks or ends the turn without waiting. A script's local variables do not survive a separate codemode call; pass the retained handle or ID explicitly. If independent work or collection fails, report any still-running IDs rather than abandoning them silently. Never retry a child automatically.
 
 ### Interruption, Cancellation & Session Ownership
 
 - **Foreground interruption:** interrupting the original blocking call cancels that work.
 - **Wait interruption:** interrupting `external_runs wait` only stops waiting; it does not cancel the selected runs. Use `external_runs cancel` to stop background work. Cancellation requests are not proof of completed cleanup; check settlement.
 - **Workflow cancellation:** cancelling the root stops its active children. Cancelling one child throws a catchable child error; a script that handles it may continue.
-- **No automatic delivery:** background completion does not notify, wake, or resume the parent. Ending a turn is not the same as closing the session; work can continue between turns in the owning session.
+- **No automatic delivery:** ending a turn does not stop background work; it continues in the owning session. Background completion does not notify, wake, or resume the parent.
 - **Not a persistent service:** keep the owning Pi session open. Orderly shutdown requests cancellation and waits for bounded cleanup. Crashes or force-kills leave unfinished evidence `interrupted_or_uncertain`; restarting Pi never adopts live orphan work.
 
 ---
