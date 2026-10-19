@@ -649,7 +649,7 @@ export function createWorkflowTool(
       }
       return {
         ...workflowResult(
-          `Workflow "${metaName}" queued as ${identity.runId}. Use external_runs to inspect, wait, or cancel it.`,
+          `Workflow "${metaName}" queued as ${identity.runId}. Do independent local work first, or report the runId and proceed/end your turn without waiting; use external_runs when ready to inspect, wait, or cancel.`,
           { ...cloneSnapshot(snapshot), backgroundReceipt: true },
         ),
         ...workflowReceipt(options.registry.get(identity.runId)!, { inspectable: true }),

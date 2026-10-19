@@ -76,7 +76,7 @@ export const agentToolParameters = Type.Object({
     description: "The task briefing to send to the subagent.",
   }),
   background: Type.Optional(Type.Boolean({
-    description: "Defaults to false: wait for settlement. True returns a stable session-owned run handle after registration; work may already be settled. Use for independent work or an explicit background request. Retain the ID and collect with external_runs; no completion notification. Keep the owning session open.",
+    description: "Defaults to false: wait for settlement. True returns a stable session-owned run handle after registration; work may already be settled. Pass true when you have independent local work to do first (do it, then call external_runs wait), or when the user asks to leave work running across turns (report the runId and do not call external_runs wait this turn). No completion notification; keep the owning session open.",
   })),
   role: Type.Optional(Type.String({
     minLength: 1,
@@ -623,7 +623,7 @@ function createAgentTool(
         });
       }
       return receipt(textResult(
-        `Subagent "${params.description}" (${subagentType}) queued as ${runRecord.runId}. Use external_runs to inspect, wait, or cancel it.`,
+        `Subagent "${params.description}" (${subagentType}) queued as ${runRecord.runId}. Do independent local work first, or report the runId and proceed/end your turn without waiting; use external_runs when ready to inspect, wait, or cancel.`,
         {
           description: params.description,
           subagentType,

@@ -142,7 +142,7 @@ await tools.external_delegate({
 
 ### 2. Foreground or Background?
 
-**Use foreground when you need the result next.** Use background when useful independent work can proceed, or you explicitly want to collect the result later. A long task alone does not need background mode.
+**Use foreground when you need the result next.** Use background when independent local work can proceed first, or you want to leave the work running and check back in a later turn (ending a turn does not stop it). A long task alone does not need background mode.
 
 Both `external_delegate` and `external_workflow` support these modes:
 
@@ -150,11 +150,11 @@ Both `external_delegate` and `external_workflow` support these modes:
 |---|---|---|
 | Original call returns | When the work finishes or fails | After registration, with a run ID; work may already have finished |
 | Progress | Live execution card | A static launch receipt; inspect with `/external runs` or ask Pi for status |
-| Next step | Pi checks the returned outcome | Pi keeps the run ID, does independent work, then collects and checks the outcome |
+| Next step | Pi checks the returned outcome | Pi keeps the run ID and does independent work before collecting, or reports the ID and switches tasks/ends its turn if left running across turns |
 
 > **You:** "Have Claude audit the API in the background while we review the release checklist. Then bring me the findings."
 
-- **No automatic completion message:** background work does not notify or wake the parent. Pi owns collection unless you explicitly ask it to defer; you should not have to manage every run yourself.
+- **No automatic completion message:** background work does not notify or wake the parent. Pi collects once its independent work is done; if you ask to leave work running or check back later, Pi reports the run ID and proceeds or ends its turn without waiting.
 - **Keep Pi open:** background work belongs to its originating session, not a persistent service. Orderly shutdown requests cancellation with bounded cleanup; restart does not adopt unfinished work.
 - **Stopping is different from waiting:** interrupting the original foreground call cancels it. Interrupting `external_runs wait` only stops waiting; use `/external runs` or `external_runs cancel` to stop background work.
 
