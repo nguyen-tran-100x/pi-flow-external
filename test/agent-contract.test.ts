@@ -242,6 +242,62 @@ console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1, c
       { triggerTurn: true, deliverAs: "followUp" },
     );
 
+    // During an active turn (agent_start), settled background runs are held;
+    // inspecting one marks it collected, and agent_end batches the remaining
+    // uncollected runs into a single follow-up message.
+    await (session as any).extensionRunner.emit({ type: "agent_start" });
+    const inspectedRun = await agent.execute(
+      "bg-inspected",
+      { description: "Inspected bg", prompt: "direct inspected", role: "worker", harness: "codex", background: true },
+      undefined,
+      undefined,
+      context,
+    );
+    const batchOne = await agent.execute(
+      "bg-batch-1",
+      { description: "Batch 1", prompt: "direct batch 1", role: "worker", harness: "codex", background: true },
+      undefined,
+      undefined,
+      context,
+    );
+    const batchTwo = await agent.execute(
+      "bg-batch-2",
+      { description: "Batch 2", prompt: "direct batch 2", role: "worker", harness: "codex", background: true },
+      undefined,
+      undefined,
+      context,
+    );
+    await vi.waitFor(() => {
+      for (const run of [inspectedRun, batchOne, batchTwo]) {
+        const s = JSON.parse(readFileSync(join(run.details.recordPath, "summary.json"), "utf8"));
+        expect(s.summary.status).toBe("done");
+      }
+    });
+    // Still inside agent_start: no wake message sent yet.
+    expect(sendCustomMessageSpy).toHaveBeenCalledTimes(2);
+    const externalRuns = session.getToolDefinition("external_runs") as any;
+    await externalRuns.execute(
+      "inspect-bg",
+      { action: "inspect", runIds: [inspectedRun.details.runId], view: "final" },
+      undefined,
+      undefined,
+      context,
+    );
+    await (session as any).extensionRunner.emit({ type: "agent_end", messages: [] });
+    await vi.waitFor(() => expect(sendCustomMessageSpy).toHaveBeenCalledTimes(3));
+    expect(sendCustomMessageSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        customType: "pi-flow-background-settled",
+        details: {
+          runs: [
+            expect.objectContaining({ runId: batchOne.details.runId }),
+            expect.objectContaining({ runId: batchTwo.details.runId }),
+          ],
+        },
+      }),
+      { triggerTurn: true, deliverAs: "followUp" },
+    );
+
     disposeSession(session);
   });
 

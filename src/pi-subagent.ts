@@ -809,7 +809,12 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
       return rootState;
     };
     const usageStatusState = createUsageStatusState();
-    const wakeDebounceMs = options.backgroundWakeDebounceMs ?? DEFAULT_BACKGROUND_WAKE_DEBOUNCE_MS;
+    const wakeDebounceMs =
+      typeof options.backgroundWakeDebounceMs === "number" &&
+      Number.isInteger(options.backgroundWakeDebounceMs) &&
+      options.backgroundWakeDebounceMs >= 0
+        ? options.backgroundWakeDebounceMs
+        : DEFAULT_BACKGROUND_WAKE_DEBOUNCE_MS;
     let activeSessionId: string | undefined;
     let activeUiCtx: ExtensionContext | undefined;
     let inAgentTurn = false;
@@ -817,7 +822,12 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
     const pendingWakeBySession = new Map<string, Map<string, { entry: RegisteredRunEntry; sessionVersion: number }>>();
 
     const rememberSessionContext = (ctx: ExtensionContext, sessionId = ctx.sessionManager?.getSessionId?.()) => {
-      if (sessionId) activeSessionId = sessionId;
+      if (sessionId && !sessionId.startsWith("unpersisted:")) {
+        if (activeSessionId !== sessionId) activeUiCtx = ctx;
+        activeSessionId = sessionId;
+      } else if (!activeSessionId && sessionId) {
+        activeSessionId = sessionId;
+      }
       if (ctx.hasUI || !activeUiCtx) activeUiCtx = ctx;
     };
 
@@ -987,13 +997,13 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
     }
 
     pi.on("agent_start", (_event, ctx) => {
-      rememberSessionContext(ctx);
+      if (!activeSessionId) rememberSessionContext(ctx);
       inAgentTurn = true;
       clearWakeTimer();
     });
 
     pi.on("agent_end", (_event, ctx) => {
-      rememberSessionContext(ctx);
+      if (!activeSessionId) rememberSessionContext(ctx);
       inAgentTurn = false;
       if (activeSessionId) scheduleWakeFlush(activeSessionId);
     });
@@ -1018,6 +1028,7 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
 
     pi.on("session_shutdown", async (_event, ctx) => {
       const sessionId = ctx.sessionManager.getSessionId();
+      inAgentTurn = false;
       clearWakeTimer();
       pendingWakeBySession.delete(sessionId);
       if (activeSessionId === sessionId) {
@@ -1036,9 +1047,7 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
     });
 
     pi.on("before_agent_start", (event, ctx) => {
-      rememberSessionContext(ctx);
-      inAgentTurn = true;
-      clearWakeTimer();
+      if (!activeSessionId) rememberSessionContext(ctx);
       const tools = pi.getAllTools();
       if (!tools.some((tool) => tool.name === EXTERNAL_DELEGATE_TOOL)) {
         return;

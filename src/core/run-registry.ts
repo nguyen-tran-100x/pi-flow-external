@@ -291,8 +291,6 @@ export class RunRegistry {
 
   private settle(entry: InternalEntry, outcome: RegisteredRunOutcome): void {
     if (entry.state === "terminal") return;
-    const activelyWaited = entry.listeners.size > 0;
-    if (activelyWaited) this.markCollected(entry.runId);
     entry.state = "terminal";
     entry.outcome = outcome;
     entry.resolveTerminal(outcome);
@@ -317,7 +315,13 @@ export class RunRegistry {
   }
 
   private emitBackground(event: BackgroundRunEvent): void {
-    for (const listener of [...this.backgroundListeners]) listener(event);
+    for (const listener of [...this.backgroundListeners]) {
+      try {
+        listener(event);
+      } catch {
+        // Never allow a UI or notification listener error to corrupt registry state.
+      }
+    }
   }
 
   private publicEntry(entry: InternalEntry): RegisteredRunEntry {
