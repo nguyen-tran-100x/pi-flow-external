@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { SessionManager, Theme, type ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { captureParentContext } from "../src/core/parent-context.ts";
 import { describe, expect, it, vi } from "vitest";
-import { fauxAssistantMessage, type AssistantMessage } from "../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/index.js";
+import { fauxAssistantMessage, type AssistantMessage } from "@earendil-works/pi-ai";
 import { setupPiSubagentTestHarness } from "./helpers/pi-subagent-harness.ts";
 import { ConcurrencyLimiter } from "../src/core/concurrency.ts";
 import { RunRegistry } from "../src/core/run-registry.ts";

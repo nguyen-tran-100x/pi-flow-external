@@ -2,6 +2,14 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.2.0-external.0] - 2026-10-20
+
+### Changed
+- Requires Pi 1.3: peer dependencies on `@earendil-works/pi-agent-core`, `pi-ai`, `pi-coding-agent` and `pi-tui` move from `~0.99.2` to `~1.3.0`.
+
+### Fixed
+- `external_delegate` and `external_workflow` no longer disappear from a session saved before the #85 rename. Pi restores a resumed or tree-navigated session's tool loadout from its transcript; that loadout named `Agent`/`workflow`, which no longer register, so only `external_help` and `external_runs` stayed active. When a restored loadout keeps either companion tool but neither launcher, both launchers are activated again. Turning off only one launcher is still respected.
+
 ## [5.1.1-external.0] - 2026-10-20
 
 ### Changed

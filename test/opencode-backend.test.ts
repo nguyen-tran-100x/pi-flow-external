@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileS
 import { join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
-import { fauxAssistantMessage, fauxToolCall, type Context } from "../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/index.js";
+import { fauxAssistantMessage, fauxToolCall, type Context } from "@earendil-works/pi-ai";
 import type { SubagentProfile } from "../src/types.ts";
 import { buildOpencodeArgs, buildOpencodeEnv, spawnOpencodeSubagent } from "../src/core/opencode.ts";
 import { spawnSubagent, hasNestedAgentActivity } from "../src/core/spawn.ts";

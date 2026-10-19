@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { fauxAssistantMessage, fauxToolCall } from "../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/index.js";
+import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { defaultProfileNames } from "../src/defaults.ts";
 import { filterExternalAgentProfiles, getSubagentProfiles } from "../src/profiles.ts";
 import { getConfiguredHarnessNames } from "../src/harnesses.ts";
@@ -88,5 +88,32 @@ describe("external-only external_delegate policy", () => {
     expect(profiles.get("pi-deepseek-worker")?.description).toContain("pi-deepseek");
     expect(profiles.get("pi-deepseek-worker")?.description).not.toBe("Native-looking worker.");
     expect(profiles.has("scout")).toBe(false);
+  });
+});
+
+describe("tool loadout restored from a pre-rename transcript", () => {
+  const { createSession } = setupPiSubagentTestHarness();
+  const legacyLoadout = ["read", "bash", "edit", "write", "Agent", "workflow", "external_help", "external_runs"];
+
+  // Pi restores the transcript loadout when it opens a saved session, and again
+  // on tree navigation after extensions are bound.
+  async function restoredLoadouts(transcriptToolNames: string[]) {
+    const { session } = await createSession({ transcriptToolNames });
+    const opened = session.getActiveToolNames();
+    await session.navigateTree(session.sessionManager.getEntries()[0].id);
+    return [opened, session.getActiveToolNames()];
+  }
+
+  it("activates both launchers when a restored loadout keeps the companions but names neither launcher", async () => {
+    for (const active of await restoredLoadouts(legacyLoadout)) {
+      expect(active).toEqual(expect.arrayContaining(["external_delegate", "external_workflow", "external_help", "external_runs"]));
+    }
+  });
+
+  it("keeps a launcher off when the restored loadout still names the other one", async () => {
+    for (const active of await restoredLoadouts([...legacyLoadout, "external_delegate"])) {
+      expect(active).toContain("external_delegate");
+      expect(active).not.toContain("external_workflow");
+    }
   });
 });

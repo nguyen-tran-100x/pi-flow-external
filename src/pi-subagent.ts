@@ -51,7 +51,7 @@ import { registerProfileCreator, startRoleInterview, startHarnessInterview } fro
 import { registerExternalCommand } from "./external-command.ts";
 import { DEFAULT_EXTERNAL_SETTINGS, loadExternalSettings, resolveCtxDefaultHarness, resolveExternalSettings, renderDefaultHarness } from "./settings.ts";
 import { EXTERNAL_HARNESSES } from "./types.ts";
-import { EXTERNAL_DELEGATE_TOOL } from "./tool-names.ts";
+import { EXTERNAL_DELEGATE_TOOL, EXTERNAL_WORKFLOW_TOOL } from "./tool-names.ts";
 import type {
   PermissionTier,
   SubagentBackend,
@@ -255,6 +255,20 @@ function isSubagentProgressNode(value: unknown): value is SubagentProgressNode {
     value.activity.every((line) => typeof line === "string") &&
     Number.isFinite(value.activityCount)
   );
+}
+
+// Pi restores a resumed or tree-navigated session's tool loadout from its
+// transcript. A transcript saved before the #85 rename names `Agent`/`workflow`,
+// which no longer register, while `external_help`/`external_runs` kept their
+// names and stay active. A companion active with neither launcher is that
+// stale loadout, not a user choice, so both launchers come back. Disabling only
+// one launcher is respected. setActiveTools ignores an unregistered workflow tool.
+function restoreRenamedLaunchers(pi: ExtensionAPI): void {
+  const active = pi.getActiveTools();
+  const launchers = [EXTERNAL_DELEGATE_TOOL, EXTERNAL_WORKFLOW_TOOL];
+  if (launchers.some((name) => active.includes(name))) return;
+  if (!active.includes("external_help") && !active.includes("external_runs")) return;
+  pi.setActiveTools([...active, ...launchers]);
 }
 
 function createUsageStatusState(): SubagentUsageStatusState {
@@ -1019,7 +1033,9 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
       if (activeSessionId) scheduleWakeFlush(activeSessionId);
     });
 
+    pi.on("session_tree", () => restoreRenamedLaunchers(pi));
     pi.on("session_start", (_event, ctx) => {
+      restoreRenamedLaunchers(pi);
       const sessionId = ctx.sessionManager.getSessionId();
       rememberSessionContext(ctx, sessionId);
       inAgentTurn = false;
