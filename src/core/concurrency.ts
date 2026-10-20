@@ -42,10 +42,13 @@ export class ConcurrencyLimiter {
   private active = 0;
   private readonly waiters: Waiter[] = [];
 
-  constructor(readonly max: number) {
+  readonly max: number;
+
+  constructor(max: number) {
     if (!Number.isInteger(max) || max < 1) {
       throw new Error("ConcurrencyLimiter max must be a positive integer");
     }
+    this.max = max;
   }
 
   get activeCount(): number {

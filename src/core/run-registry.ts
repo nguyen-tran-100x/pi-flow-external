@@ -80,11 +80,16 @@ export class RunRegistry {
   private readonly closedSessions = new Set<string>();
   private readonly backgroundListeners = new Set<(event: BackgroundRunEvent) => void>();
 
-  constructor(private readonly completedLimit = DEFAULT_COMPLETED_LIMIT, private readonly shutdownGraceMs = 4_000) {
+  private readonly completedLimit: number;
+  private readonly shutdownGraceMs: number;
+
+  constructor(completedLimit = DEFAULT_COMPLETED_LIMIT, shutdownGraceMs = 4_000) {
     if (!Number.isInteger(completedLimit) || completedLimit < 0) {
       throw new Error("completed run limit must be a non-negative integer");
     }
     if (!Number.isInteger(shutdownGraceMs) || shutdownGraceMs < 0) throw new Error("shutdown grace must be a non-negative integer");
+    this.completedLimit = completedLimit;
+    this.shutdownGraceMs = shutdownGraceMs;
   }
 
   sessionVersion(sessionId: string): number {

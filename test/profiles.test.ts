@@ -14,7 +14,7 @@ import {
   type Context,
   type Model,
   type SimpleStreamOptions,
-} from "../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/index.js";
+} from "@earendil-works/pi-ai";
 import { describe, expect, it, vi } from "vitest";
 import { createSubagentExtension } from "../src/pi-subagent.ts";
 import { externalRoleAvailability, filterExternalAgentProfiles, getSubagentProfiles, isExternalAgentProfile, loadCustomSubagentProfiles, mergeSynthesizedPiProfiles, resolveExternalProfile } from "../src/profiles.ts";

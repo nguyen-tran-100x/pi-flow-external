@@ -9,7 +9,7 @@ import {
   SettingsManager,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { fauxAssistantMessage, type Context } from "../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/index.js";
+import { fauxAssistantMessage, type Context } from "@earendil-works/pi-ai";
 import { describe, expect, it, vi } from "vitest";
 import { CHILD_EXCLUDED_TOOLS, spawnSubagent } from "../src/core/spawn.ts";
 import { runRecordsDirectory } from "../src/core/retention.ts";

@@ -8,8 +8,11 @@ export type FlowErrorCode = (typeof FLOW_ERROR_CODES)[number];
 
 /** Expected caller/configuration failure, distinct from a programming error. */
 export class ExpectedFlowError extends Error {
-  constructor(readonly code: FlowErrorCode, message: string) {
+  readonly code: FlowErrorCode;
+
+  constructor(code: FlowErrorCode, message: string) {
     super(message);
+    this.code = code;
     this.name = "ExpectedFlowError";
   }
 }

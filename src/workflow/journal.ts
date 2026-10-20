@@ -48,8 +48,13 @@ export interface LoadedWorkflowJournal {
 
 /** A journal that exists but cannot be loaded; `project` is set when its own run_start line names one. */
 export class WorkflowJournalReadError extends ExpectedFlowError {
-  constructor(message: string, readonly project: string | undefined, readonly integrity: "damaged" | "unknown") {
+  readonly project: string | undefined;
+  readonly integrity: "damaged" | "unknown";
+
+  constructor(message: string, project: string | undefined, integrity: "damaged" | "unknown") {
     super("run_unavailable", message);
+    this.project = project;
+    this.integrity = integrity;
     this.name = "WorkflowJournalReadError";
   }
 }

@@ -45,6 +45,10 @@ type CreateSessionOptions = {
   projectTrusted?: boolean;
   /** Register named pi-* harness configs in settings.json (version 4) pointing at an already-registered faux model. */
   piHarnesses?: Record<string, { modelId: string; thinking?: ThinkingLevel }>;
+  /** Seed the transcript with a tool loadout, as a session saved by an older install would carry. */
+  transcriptToolNames?: string[];
+  /** The SDK `tools` option, as `--tools` passes it. */
+  tools?: string[];
 };
 
 export type HarnessState = {
@@ -207,6 +211,14 @@ const modelRegistry = new ModelRegistry(modelRuntime);
       settingsManager.setProjectTrusted(true);
     }
     const sessionManager = SessionManager.inMemory(cwd);
+    if (options.transcriptToolNames) {
+      sessionManager.appendMessage({
+        role: "system",
+        content: "",
+        toolsAdded: options.transcriptToolNames.map((name) => ({ name, description: name, parameters: { type: "object", properties: {} } })),
+        timestamp: Date.now(),
+      } as Parameters<typeof sessionManager.appendMessage>[0]);
+    }
     const extensionOptions = {
       ...(maxConcurrentSubagents === undefined ? {} : { maxConcurrentSubagents }),
       ...(subagentTimeoutMs === undefined ? {} : { subagentTimeoutMs }),
@@ -239,6 +251,7 @@ const modelRegistry = new ModelRegistry(modelRuntime);
       settingsManager,
       sessionManager,
       resourceLoader,
+      ...(options.tools ? { tools: options.tools } : {}),
     });
     trackSession(session);
     await session.bindExtensions({});

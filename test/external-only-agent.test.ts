@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { fauxAssistantMessage, fauxToolCall } from "../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/index.js";
+import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { defaultProfileNames } from "../src/defaults.ts";
 import { filterExternalAgentProfiles, getSubagentProfiles } from "../src/profiles.ts";
 import { getConfiguredHarnessNames } from "../src/harnesses.ts";
@@ -88,5 +88,53 @@ describe("external-only external_delegate policy", () => {
     expect(profiles.get("pi-deepseek-worker")?.description).toContain("pi-deepseek");
     expect(profiles.get("pi-deepseek-worker")?.description).not.toBe("Native-looking worker.");
     expect(profiles.has("scout")).toBe(false);
+  });
+});
+
+describe("tool loadout restored from a pre-rename transcript", () => {
+  const { createSession } = setupPiSubagentTestHarness();
+  const builtins = ["read", "bash", "edit", "write"];
+
+  // Pi restores the transcript loadout when it opens a saved session, and again
+  // on tree navigation after extensions are bound. `tools` reaches both Pi and
+  // the extension, as `--tools` does.
+  async function restoredLoadouts(transcriptToolNames: string[], tools?: string[]) {
+    const argv = process.argv;
+    if (tools) process.argv = [...argv, "--tools", tools.join(",")];
+    try {
+      const { session } = await createSession({ transcriptToolNames, tools });
+      const opened = session.getActiveToolNames();
+      await session.navigateTree(session.sessionManager.getEntries()[0].id);
+      return [opened, session.getActiveToolNames()];
+    } finally {
+      process.argv = argv;
+    }
+  }
+
+  it("activates the replacement of each legacy launcher name, without companion tools", async () => {
+    for (const active of await restoredLoadouts([...builtins, "Agent", "workflow"])) {
+      expect(active).toEqual(expect.arrayContaining(["external_delegate", "external_workflow"]));
+    }
+  });
+
+  it("activates only the launchers whose legacy names the loadout declares", async () => {
+    for (const active of await restoredLoadouts([...builtins, "Agent", "external_help"])) {
+      expect(active).toContain("external_delegate");
+      expect(active).not.toContain("external_workflow");
+    }
+  });
+
+  it("leaves a current loadout without launchers unchanged", async () => {
+    for (const active of await restoredLoadouts([...builtins, "external_help", "external_runs"])) {
+      expect(active).not.toContain("external_delegate");
+      expect(active).not.toContain("external_workflow");
+    }
+  });
+
+  it("keeps a launcher excluded by a --tools modifier off", async () => {
+    for (const active of await restoredLoadouts([...builtins, "Agent", "workflow"], ["-external_delegate"])) {
+      expect(active).not.toContain("external_delegate");
+      expect(active).toContain("external_workflow");
+    }
   });
 });

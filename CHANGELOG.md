@@ -2,6 +2,15 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.2.0-external.0] - 2026-10-20
+
+### Changed
+- Requires Pi 1.3: peer dependencies on `@earendil-works/pi-agent-core`, `pi-ai`, `pi-coding-agent` and `pi-tui` move from `~0.99.2` to `~1.3.0`.
+- Node 26 is supported and tested in CI. `npm run e2e` no longer passes `--experimental-transform-types`, which Node 26 removed; the sources now use erasable TypeScript syntax only and load through Node's built-in type stripping.
+
+### Fixed
+- `external_delegate` and `external_workflow` no longer disappear from a session saved before the #85 rename. Pi restores a resumed or tree-navigated session's tool loadout from its transcript, and the legacy names `Agent` and `workflow` no longer register. Each legacy name the restored loadout declares now activates its replacement. A launcher stays off when the loadout also declares its current name, or when `--tools -<name>` or `--no-tools` excludes it.
+
 ## [5.1.1-external.0] - 2026-10-20
 
 ### Changed

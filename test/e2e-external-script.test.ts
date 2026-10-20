@@ -20,12 +20,9 @@ async function makeAgentDir(): Promise<string> {
 }
 
 // The default (non --routing-smoke) lane dynamically imports the extension's
-// own TypeScript sources (parameter-property constructors etc.), which plain
-// Node strip-only parsing rejects; --experimental-transform-types performs a
-// full transform instead. Argument-validation and precheck failures happen
-// before that import ever runs, so they pass with or without the flag, but
-// carrying it here keeps every case realistic to how `npm run e2e` actually
-// invokes the script.
+// own TypeScript sources. They use erasable syntax only (tsconfig
+// `erasableSyntaxOnly`), so Node's built-in type stripping loads them on every
+// supported Node version without a transform flag.
 // The script now preserves its runRoot on any failure (not just --keep), so
 // callers can inspect it after a real, unexpected failure. That is exactly
 // what several tests below intentionally trigger, so capture and schedule
@@ -38,7 +35,7 @@ function captureAndScheduleCleanup(stdout: string): void {
 
 function runScript(args: string[], env: Record<string, string | undefined> = {}, timeout = 10_000): { code: number; stdout: string; stderr: string } {
   try {
-    const stdout = execFileSync(process.execPath, ["--experimental-transform-types", scriptPath, ...args], {
+    const stdout = execFileSync(process.execPath, [scriptPath, ...args], {
       encoding: "utf8",
       env: { ...process.env, ...env },
       timeout,
