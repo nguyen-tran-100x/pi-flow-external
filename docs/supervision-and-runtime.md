@@ -108,27 +108,37 @@ return { run, view, encoding, text, checklist };
 
 ## The `external_runs` Tool
 
-Use `external_runs` to supervise, inspect, and manage runs programmatically:
+Use `external_runs` to supervise, inspect, and manage runs programmatically. Only `action` is top-level required in the JSON Schema; omit parameters that do not apply to the chosen action:
+
+| Action | Required | Optional | Inapplicable (omit) |
+| --- | --- | --- | --- |
+| `list` | `action` | `workflowRunId`, `cursor`, `workflowCursor`, `limit` | `runIds`, `view`, `limitBytes`, `mode`, `reason` |
+| `list` (with `workflowRunId`) | `action`, `workflowRunId` | `cursor`, `limit` | `workflowCursor`, `runIds`, `view`, `limitBytes`, `mode`, `reason` |
+| `inspect` (single run: 1 ID) | `action`, `runIds` (`[id]`) | `view` (`summary` \| `output` \| `diagnostics` \| `final` \| `launch`), `cursor`, `limitBytes` | `workflowRunId`, `workflowCursor`, `limit`, `mode`, `reason` |
+| `inspect` (batch: 2-20 IDs) | `action`, `runIds` (`2-20` IDs) | `view` (`"summary"` only), `cursor`, `limitBytes` | `workflowRunId`, `workflowCursor`, `limit`, `mode`, `reason` |
+| `wait` | `action`, `runIds` (`1-100` IDs) | `mode` (`"any"` \| `"all"`), `limitBytes` | `workflowRunId`, `view`, `cursor`, `workflowCursor`, `limit`, `reason` |
+| `cancel` | `action`, `runIds` (`[id]`, `1` ID) | `reason` | `workflowRunId`, `view`, `cursor`, `workflowCursor`, `limit`, `limitBytes`, `mode` |
 
 ### 1. `list`
-Page session-owned runs and workflow roots:
+Page session-owned agent runs and workflow roots:
 ```ts
 await external_runs({
   action: "list",
   limit: 10,
-  cursor: undefined, // pass nextCursor for pagination
 });
 ```
-Each entry returns timing projections (`queueDelayMs`, `elapsedMs`, `activityAgeMs`, `processDurationMs`).
+- **`cursor` vs. `workflowCursor`:** `list` returns two independent paged streams: `runs` (paged with `cursor` from `nextCursor`) and `workflows` (paged with `workflowCursor` from `nextWorkflowCursor`).
+- **`workflowRunId` filtering:** Passing `workflowRunId: "wf_..."` filters `runs` to that workflow's child agent runs and returns `workflows: []`, so only `cursor` applies (`workflowCursor` is inapplicable).
+- Each entry returns timing projections (`queueDelayMs`, `elapsedMs`, `activityAgeMs`, `processDurationMs`).
 
 ### 2. `inspect`
 Inspect a specific run's state and streams:
 ```ts
-// Single-run inspection supports any view:
+// Single-run inspection (1 ID) supports any view:
 await external_runs({
   action: "inspect",
   runIds: [runId],
-  view: "summary", // "summary" | "output" | "diagnostics" | "final" | "launch"
+  view: "final", // "summary" | "output" | "diagnostics" | "final" | "launch"
   limitBytes: 32768,
 });
 ```
@@ -138,17 +148,16 @@ await external_runs({
 - `final`: **Verified canonical result only**. Returns empty with `finalAvailable: false` until the child reaches verified terminal success.
 - `launch`: Detailed initial launch prompt, configuration, and shared context snapshot.
 
-**Batch Inspection (Summary-only):** Pass up to 20 IDs to check multiple background children in a single cheap call:
+**Batch Inspection (`2-20` IDs, `summary` view only):** Pass 2 to 20 IDs in `runIds` to check multiple background runs in a single bounded call (non-`summary` views require a single target):
 ```ts
 await external_runs({
   action: "inspect",
   runIds: [runId1, runId2],
-  view: "summary", // Batch inspect is summary-only
 });
 ```
 
 ### 3. `wait`
-Block until one or more targets reach terminal state:
+Block until one or more targets (`1-100` IDs in `runIds`) reach terminal state:
 ```ts
 const waitResult = await external_runs({
   action: "wait",
@@ -162,7 +171,7 @@ const waitResult = await external_runs({
 - **Shared Budget:** The `limitBytes` cap is spent across settled results in requested order. If a result exceeds remaining space, it returns `resultTruncated: true` with references to inspect the rest.
 
 ### 4. `cancel`
-Cancel an active run:
+Cancel a single active run (`1` ID via `runIds: [runId]` or `runId`):
 ```ts
 await external_runs({
   action: "cancel",

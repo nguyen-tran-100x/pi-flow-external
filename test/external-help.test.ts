@@ -3,6 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { validateToolArguments } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  EXTERNAL_RUNS_ACTION_SPECS,
+  EXTERNAL_RUNS_EXAMPLES,
+  EXTERNAL_RUNS_PARAMETER_KEYS,
+  formatExternalRunsActionGuidance,
+} from "../src/contract/runs.ts";
 import { ConcurrencyLimiter } from "../src/core/concurrency.ts";
 import { createExternalHelpTool } from "../src/external-help.ts";
 import { createExternalRunsTool } from "../src/external-runs.ts";
@@ -147,6 +153,7 @@ describe("external_help unknown harness filter", () => {
       expect(text).toContain("blocking by default");
       expect(text).toContain("parallel([() => agent(...), ...])");
       expect(text).toContain("background: true");
+      expect(text).toContain(formatExternalRunsActionGuidance());
     });
   });
 });
@@ -176,13 +183,14 @@ describe("external_help usage playbook", () => {
       expect(text).toContain(JSON.stringify(USAGE_ONE_AGENT, null, 2));
       expect(text).toContain(JSON.stringify(USAGE_RESTRICTED_AGENT, null, 2));
       expect(text).toContain(JSON.stringify(USAGE_RUNS_FINAL, null, 2));
+      expect(text).toContain(formatExternalRunsActionGuidance());
 
       const blank = await tool.execute("call-usage-blank", { topic: "usage", harness: "  " }, undefined, undefined, fakeCtx(agentDir));
       expect(blank.details).toEqual({ topic: "usage" });
     });
   });
 
-  it("validates playbook selectors against the external_delegate, external_runs, and workflow schemas", () => {
+  it("validates playbook selectors and all external_runs action examples against the executable schemas", async () => {
     const agentTool = { name: "external_delegate", parameters: agentToolParameters } as any;
     for (const example of ordinaryAgents) {
       const validated = validateToolArguments(agentTool, toolCall("external_delegate", { ...example }));
@@ -201,6 +209,40 @@ describe("external_help usage playbook", () => {
 
     const runsTool = createExternalRunsTool({ registry: new RunRegistry(1), runsDirectory: () => "/tmp" }) as any;
     expect(validateToolArguments(runsTool, toolCall("external_runs", USAGE_RUNS_FINAL))).toEqual(USAGE_RUNS_FINAL);
+
+    const schemaPropertyKeys = Object.keys(runsTool.parameters.properties).sort();
+    expect([...EXTERNAL_RUNS_PARAMETER_KEYS].sort()).toEqual(schemaPropertyKeys);
+
+    for (const [name, example] of Object.entries(EXTERNAL_RUNS_EXAMPLES)) {
+      const validated = validateToolArguments(runsTool, toolCall(`external_runs_${name}`, { ...example }));
+      expect(validated).toEqual(example);
+    }
+
+    for (const spec of EXTERNAL_RUNS_ACTION_SPECS) {
+      const partitioned = [...spec.required, ...spec.optional, ...spec.inapplicable];
+      expect(new Set(partitioned).size).toBe(EXTERNAL_RUNS_PARAMETER_KEYS.length);
+      expect([...partitioned].sort()).toEqual(schemaPropertyKeys);
+      const allowed = new Set<string>([...spec.required, ...spec.optional]);
+      for (const key of Object.keys(spec.example)) {
+        expect(allowed.has(key)).toBe(true);
+      }
+      expect(validateToolArguments(runsTool, toolCall(`external_runs_spec_${spec.label}`, { ...spec.example }))).toEqual(spec.example);
+    }
+
+    const guidance = formatExternalRunsActionGuidance();
+    expect(guidance).toContain("inspect (single run, any view)");
+    expect(guidance).toContain("inspect (batch summary, 2-20 runs)");
+    expect(guidance).toContain("workflowCursor");
+    expect(guidance).toContain("workflowRunId");
+
+    const helpTool = makeTool();
+    const agentDir = tempAgentDir();
+    await withAgentDir(agentDir, async () => {
+      const usageRes = await helpTool.execute("call-usage", { topic: "usage" }, undefined, undefined, fakeCtx(agentDir));
+      expect((usageRes.content[0] as { text: string }).text).toContain(guidance);
+      const workflowRes = await helpTool.execute("call-wf", { topic: "workflow" }, undefined, undefined, fakeCtx(agentDir));
+      expect((workflowRes.content[0] as { text: string }).text).toContain(guidance);
+    });
 
     const script = usageWorkflowScript();
     const workflowTool = { name: "external_workflow", parameters: workflowToolParameters } as any;
