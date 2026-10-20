@@ -27,7 +27,7 @@ Specifications for programmatic subagent delegation and tool outputs:
 
 | Document | Status | Purpose |
 |---|---|---|
-| **[Public Contract v1](public-contract.md)** | `Normative Contract` | Schema definitions, envelope shapes (`{ ok, data, error }`), and delivery invariants for `external_delegate`, `external_workflow`, and `external_runs`. |
+| **[Public Contract v1](public-contract.md)** | `Normative Contract` | Schema definitions, envelope shapes (`{ ok, data, error }`), `external_help({ topic: "contracts", tool? })` discovery, explicit context-handoff guidance, and delivery invariants for `external_delegate`, `external_workflow`, `external_runs`, and `external_help`. |
 
 ---
 

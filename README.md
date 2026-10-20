@@ -30,7 +30,7 @@ You ask Pi to delegate work in plain chat. Every delegation combines three eleme
 
 ## Requirements &amp; Install
 
-1. **Host:** Pi `~0.99.2`.
+1. **Host:** Pi `~1.3.0`.
 2. **External CLIs:** Install and authenticate any external CLI you want to use (`claude`, `codex`, `agy`, `grok`, `muse`, or `opencode`). Pi and external CLIs manage authentication independently.
 
 Install globally:
@@ -226,5 +226,5 @@ The direct delegation tool `Agent` is now `external_delegate`, with no alias. Up
 - **[Supervision &amp; Runtime](docs/supervision-and-runtime.md):** `external_runs` actions, cursor pagination, batch inspect, and byte budgets.
 - **[Workflows](docs/workflows.md):** `external_workflow`, plain-language plans, live phases, error handling (`ChildRunError`), and replay cache.
 - **[Workflow Tool Rename](docs/migration-workflow-to-external-workflow.md):** `workflow` → `external_workflow`, with no alias.
-- **[Public Contract](docs/public-contract.md):** Contract envelope definitions for Pi codemode consumers.
+- **[Public Contract](docs/public-contract.md):** Contract envelope definitions (`external_delegate`, `external_workflow`, `external_runs`, `external_help`), `external_help({ topic: "contracts", tool? })` discovery, and explicit context-handoff guidance for Pi codemode consumers.
 - **[Troubleshooting](docs/troubleshooting.md):** Common errors, authentication checks, and `pi-cc-extensions` renderer compatibility.

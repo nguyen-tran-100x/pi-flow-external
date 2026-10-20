@@ -2,6 +2,21 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.3.0-external.0] - 2026-10-20
+
+### Added
+- Generated public contract discovery and explicit context-handoff guidance (#78):
+  - `external_help({ topic: "contracts", tool? })` returns a compact index (≤ 1.5 KiB) across `external_delegate`, `external_workflow`, `external_runs`, and `external_help` (including whether `external_workflow` is registered), or per-tool contract detail (`{ tool, contractVersion, registered, actions, purpose, input, output, semantics, examples, helpers? }`) generated directly from the executable tool schemas (`src/contract/help.ts`).
+  - `external_help` now declares `outputSchema` (`externalHelpOutputSchema`) and returns the versioned `contractVersion: 1` envelope (`action: "help"`).
+  - Exported `AGENT_OPTION_KEYS` and `WORKFLOW_HELPERS` in `src/contract/workflow.ts`, shared by `normalizeAgentOptions` and workflow help rendering.
+  - Added explicit context-handoff guidance and copyable, test-verified codemode examples (typed error handling, batch summary inspection, paged `final` retrieval, and reference-capable explicit evidence handoff with bounded evidence selection and omissions disclosure) in [docs/public-contract.md](docs/public-contract.md) and the `usage` playbook.
+
+### Changed
+- Unknown `external_help` `harness` filters on `roles`/`permissions` and unknown `tool` selectors on `contracts` now return a typed `selection_invalid` error receipt (`ok: false`, `isError: true`, `data: null`) instead of throwing. Blank/whitespace `harness` and `tool` placeholders continue to normalize to omitted.
+
+### Fixed
+- `describeTool("external_delegate")` in Pi codemode now renders all input properties and both `role` and `subagent_type` selector branches instead of `{ [key: string]: unknown; }` (`agentToolParameters` in `src/contract/agent.ts` repeats shared property and required definitions inside each root `anyOf` branch while preserving `validateToolArguments` parity).
+
 ## [5.2.0-external.0] - 2026-10-20
 
 ### Changed
