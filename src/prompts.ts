@@ -1,3 +1,4 @@
+import { EXTERNAL_RUNS_EXAMPLES, formatExternalRunsActionGuidance } from "./contract/runs.ts";
 import type { SavedWorkflow } from "./workflow/registry.ts";
 import { EXTERNAL_HARNESSES, type PermissionTier, type SubagentProfile } from "./types.ts";
 import { externalProfileRole, externalRoleAvailability } from "./profiles.ts";
@@ -12,7 +13,7 @@ export const EXTERNAL_HELP_PROMPT_SNIPPET =
   "Show the delegation playbook, role details, permission behavior, or workflow guidance on demand.";
 
 export const EXTERNAL_RUNS_PROMPT_SNIPPET =
-  "List, inspect (single or batch summary via runIds, up to 20), wait for, or cancel session-owned external runs; follow cursors for complete output. view: final returns only a verified terminal answer, empty until one exists.";
+  "Supervise session-owned external runs (supply only fields for the chosen action): list (optional workflowRunId, limit, cursor, workflowCursor), inspect (runIds: 1 ID with any view, or 2-20 IDs for summary batch), wait (runIds 1-100, optional mode/limitBytes), or cancel (runIds: 1 ID, optional reason). view: final returns only a verified terminal answer, empty until one exists.";
 
 // Only elide the "(harness only)" suffix when every configured harness
 // carries the role; a role available on all configured CLIs but no pi harness
@@ -143,12 +144,8 @@ export const USAGE_BACKGROUND_AGENT: UsageAgentExample = {
   background: true,
 };
 
-/** Single-id batch inspect. The executor accepts runIds with view final for one id. */
-export const USAGE_RUNS_FINAL = {
-  action: "inspect" as const,
-  runIds: ["run_example"],
-  view: "final" as const,
-};
+/** Single-id inspect with final view, shared with the authoritative external_runs contract examples. */
+export const USAGE_RUNS_FINAL = EXTERNAL_RUNS_EXAMPLES.inspectSingle;
 
 /** Continues a CLI child that stored a session id. Named pi-* harnesses cannot resume. */
 export const USAGE_RESUME_AGENT: UsageAgentExample = {
@@ -218,6 +215,8 @@ Choose fresh context or resume deliberately. Omit context, or pass {"mode":"none
 Choose foreground by default when you need the result next, even for a long or parallel workflow: the original call waits for settlement and its live card carries progress. Pass background:true when you have independent local work (read, edit, bash) that does not touch files the delegated run may change, or when the user asks for background execution. Do that independent work first and never follow a background launch with an immediate external_runs wait. Ending a turn does not stop a background run: if the user asks to leave the workflow running, attend to another task, or check back later, report the runId and proceed with the other task or end your turn without waiting. Otherwise keep the ID and collect/check the outcome after your independent work finishes. The returned handle means accepted, not completed; the run may already be settled. UI sessions display active background runs in the status bar and send a follow-up wake message when an uncollected background run settles across turns. Keep Pi open: orderly shutdown requests cancellation with bounded cleanup; crashes leave uncertain evidence and restart does not adopt work.
 
 Unless the user deferred collection, after independent work use external_runs wait if settlement is not already known. When the user later asks about a deferred run, inspect its runId first and wait only if it is still running. Check ok for the operation, then each completed run's state.outcome and pending IDs; a failed workflow can return wait early even in mode all. Use successful output when delivery is inline (null/false/0 are valid); otherwise inspect view final, following cursor pages. For failures inspect diagnostics or output; final is empty without verified success. A successful workflow may still have children.failed when its script caught child errors; read the reports. Interrupting the original foreground call cancels its work. Interrupting wait only stops waiting; cancel explicitly to stop background work. Cancelling a workflow stops active children; cancelling one child throws a catchable child error. Both modes share permissions, budget enforcement, and concurrency limits. A failed or aborted run stays failed. Retry it, or switch model or harness, only when the user authorized that step. agy may make one disclosed infrastructure retry; that exception is not yours to extend.
+
+${formatExternalRunsActionGuidance()}
 
 One external_delegate call. Permission stays omitted; the prompt carries the no-edit intent:
 ${jsonBlock(USAGE_ONE_AGENT)}

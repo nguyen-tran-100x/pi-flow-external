@@ -243,7 +243,7 @@ function workflowListCursor(name: string): string {
 
 function workflowListStart(names: string[], cursor?: string): number {
   if (!cursor) return 0;
-  if (cursor.length > 4_096) throw new ExpectedFlowError("cursor_invalid", "Invalid workflow list cursor");
+  if (typeof cursor !== "string" || cursor.length > 4_096) throw new ExpectedFlowError("cursor_invalid", "Invalid workflow list cursor");
   try {
     const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as Record<string, unknown>;
     if (Object.keys(parsed).sort().join(",") !== "kind,name,v" || parsed.v !== 1 || parsed.kind !== "workflow-list" || typeof parsed.name !== "string") throw new Error();
@@ -260,8 +260,8 @@ export async function listWorkflowJournals(dir: string, project: string, limit =
   try {
     names = (await readdir(dir)).filter((name) => /^run-wf_[A-Za-z0-9_-]{1,128}\.jsonl$/.test(name)).sort().reverse();
   } catch (error) {
-    if (isNotFound(error)) return { items: [] };
-    throw error;
+    if (!isNotFound(error)) throw error;
+    names = [];
   }
   const start = workflowListStart(names, cursor);
   const pageLimit = Math.max(1, Math.min(100, limit));

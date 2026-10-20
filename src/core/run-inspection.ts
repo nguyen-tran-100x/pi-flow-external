@@ -839,7 +839,7 @@ function encodeCursor(cursor: InspectionCursor | ListCursor): string {
 }
 
 function decodeCursor(value: string): InspectionCursor | ListCursor {
-  if (!value || value.length > MAX_CURSOR_CHARS) throw cursorInvalid();
+  if (typeof value !== "string" || !value || value.length > MAX_CURSOR_CHARS) throw cursorInvalid();
   let parsed: Record<string, unknown> | undefined;
   try {
     parsed = asRecord(JSON.parse(Buffer.from(value, "base64url").toString("utf8")));

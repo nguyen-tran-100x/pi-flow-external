@@ -1,7 +1,6 @@
-import { StringEnum } from "@earendil-works/pi-ai";
 import { type ExtensionContext, type Theme, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
-import { Type, type Static } from "typebox";
+import { type Static } from "typebox";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { getRunRecord, inspectRun, listRunRecords, type RunInspectionView, type RunRecordListItem } from "./core/run-inspection.ts";
@@ -13,7 +12,16 @@ import { SPINNER_INTERVAL_MS } from "./core/spinner.ts";
 import { EXTERNAL_RUNS_PROMPT_SNIPPET } from "./prompts.ts";
 import { envelope, INLINE_RESULT_BYTES, redactedText, withContract } from "./contract/envelope.ts";
 import { durableAgentRun, journalWorkflowRun, liveAgentRun, liveWorkflowRun, unreadableWorkflowRun, type EvidenceIntegrity, type PublicRun } from "./contract/run.ts";
-import { externalRunsOutputSchema } from "./contract/runs.ts";
+import {
+  EXTERNAL_RUNS_ACTIONS,
+  EXTERNAL_RUNS_EXAMPLES,
+  externalRunsOutputSchema,
+  externalRunsParameters,
+  MAX_BATCH_INSPECT_TARGETS,
+  MAX_WAIT_TARGETS,
+  SINGLE_INSPECT_VIEWS,
+  WAIT_MODES,
+} from "./contract/runs.ts";
 import { ExpectedFlowError } from "./core/errors.ts";
 import { redactSecrets } from "./core/run-record.ts";
 import type { WorkflowToolDetails } from "./types.ts";
@@ -21,52 +29,6 @@ import { getSessionWorkflowDir, listWorkflowJournals, loadWorkflowJournal, Workf
 
 const RUN_ID = /^(?:run|wf)_[A-Za-z0-9_-]{1,128}$/;
 const WORKFLOW_ID = /^wf_[A-Za-z0-9_-]{1,128}$/;
-const MAX_TARGETS = 100;
-/**
- * Cap for `inspect`'s batch `runIds` mode. Intentionally lower than `wait`'s
- * MAX_TARGETS (100): batch inspection returns full projections and may touch
- * live evidence reads per target, so it stays cheap by staying small.
- */
-const MAX_BATCH_INSPECT_TARGETS = 20;
-
-const externalRunsParameters = Type.Object({
-  action: StringEnum(["list", "inspect", "wait", "cancel"] as const, {
-    description: "list: page runs/workflows; inspect: read one run; wait: block until selected terminal outcomes; cancel: stop one run.",
-  }),
-  runIds: Type.Optional(Type.Array(Type.String(), {
-    maxItems: MAX_TARGETS,
-    description: "Target run IDs (run_... agent, wf_... workflow). For inspect: a single-entry list [\"run_...\"] inspects that run with any view (summary, output, diagnostics, final); multiple entries (1-20 targets) batch summary inspect. For cancel: a single-entry list [\"run_...\"]. For wait: any|all of up to 100 targets.",
-  })),
-  view: Type.Optional(StringEnum(["summary", "output", "diagnostics", "final", "launch"] as const, {
-    description: "inspect view: launch (recorded prompt, context and execution configuration; sensitive, explicit inspection only), summary (state/timing/freshness/refs, default), output (assistant text plus canonical result, partial or final), diagnostics (tool activity/errors), final (only the verified canonical terminal answer, empty until a successful terminal boundary exists). Batch inspect (runIds) only supports summary.",
-  })),
-  mode: Type.Optional(StringEnum(["any", "all"] as const, {
-    description: "wait mode: any returns on the first terminal outcome; all waits for every target. Neither cancels pending work; an unsuccessful selected workflow returns early even in all mode.",
-  })),
-  cursor: Type.Optional(Type.String({
-    description: "Opaque continuation cursor from a prior response; pass back verbatim to page. Stale/reused cursors fail with an actionable error.",
-  })),
-  workflowCursor: Type.Optional(Type.String({
-    description: "Opaque cursor paging the workflow-roots listing (list action); pass back verbatim. Not used when workflowRunId filters to one workflow's children.",
-  })),
-  limit: Type.Optional(Type.Integer({
-    minimum: 1,
-    maximum: 100,
-    description: "Max entries per list/children page.",
-  })),
-  limitBytes: Type.Optional(Type.Integer({
-    minimum: 4,
-    maximum: 65536,
-    description: "Max bytes per inspect page, including the summary view; follow nextCursor for the remainder. For wait, this is the total result budget shared across every settled outcome in the response (default 32768): a result that fits is returned complete, one that does not is truncated with resultTruncated:true and outputRef/diagnosticsRef for the rest.",
-  })),
-  workflowRunId: Type.Optional(Type.String({
-    description: "list filter: children of this wf_... workflow only.",
-  })),
-  reason: Type.Optional(Type.String({
-    maxLength: 512,
-    description: "Optional cancellation reason recorded with the run evidence.",
-  })),
-});
 
 export type ExternalRunsParams = Static<typeof externalRunsParameters> & {
   /** Legacy single-target selector; preserved for backwards-compatible programmatic/test callers. */
@@ -112,8 +74,16 @@ function notLive(message: string): ExpectedFlowError {
   return new ExpectedFlowError("run_not_live", message);
 }
 
-function assertRunId(runId: unknown): asserts runId is string {
-  if (typeof runId !== "string" || !RUN_ID.test(runId)) throw invalid("Invalid run ID");
+function assertRunId(runId: unknown, action: "inspect" | "wait" | "cancel" = "inspect"): asserts runId is string {
+  if (typeof runId === "string" && RUN_ID.test(runId)) return;
+  const example = action === "cancel"
+    ? EXTERNAL_RUNS_EXAMPLES.cancel
+    : action === "wait"
+      ? EXTERNAL_RUNS_EXAMPLES.wait
+      : EXTERNAL_RUNS_EXAMPLES.inspectSingle;
+  throw invalid(
+    `Invalid run ID for ${action}; pass a run_... or wf_... ID in runIds, e.g. ${JSON.stringify(example)}.`,
+  );
 }
 
 function assertOwned(entry: Pick<RegisteredRunEntry, "sessionId" | "project">, sessionId: string, project: string): void {
@@ -293,8 +263,16 @@ function decodeUnpersistedCursor(value: string, scope: string): UnpersistedBookm
   if (parsed?.kind !== "unpersisted-list") return undefined;
   const keys = Object.keys(parsed).sort().join(",");
   const valid = parsed.v === 1 && ((keys === "after,kind,scope,v" && typeof parsed.after === "string" && RUN_ID.test(parsed.after)) || (keys === "kind,persisted,scope,v" && parsed.persisted === true));
-  if (!valid) throw cursorInvalid("Invalid list cursor");
-  if (parsed.scope !== scope) throw cursorInvalid("Cursor belongs to a different list scope");
+  if (!valid) {
+    throw cursorInvalid(
+      `Invalid list cursor; pass nextCursor (${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.listRunsNextPage)}) or nextWorkflowCursor (${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.listWorkflowsNextPage)}), or restart with ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.list)}.`,
+    );
+  }
+  if (parsed.scope !== scope) {
+    throw cursorInvalid(
+      `Cursor belongs to a different list scope for list; use cursor for runs (or workflowRunId children) and workflowCursor for unfiltered workflows, or restart with ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.list)}.`,
+    );
+  }
   return typeof parsed.after === "string" ? { after: parsed.after } : { persisted: true };
 }
 
@@ -317,7 +295,18 @@ async function pageUnpersistedFirst<L extends { runId: string }, D>(
   persisted: (limit: number, cursor: string | undefined) => Promise<{ items: D[]; nextCursor?: string }>,
 ): Promise<{ live: L[]; items: D[]; nextCursor?: string }> {
   const bookmark = cursor === undefined ? undefined : decodeUnpersistedCursor(cursor, scope);
-  if (cursor !== undefined && bookmark === undefined) return { live: [], ...await persisted(pageSize, cursor) };
+  if (cursor !== undefined && bookmark === undefined) {
+    try {
+      return { live: [], ...await persisted(pageSize, cursor) };
+    } catch (error) {
+      if (error instanceof ExpectedFlowError && error.code === "cursor_invalid") {
+        throw cursorInvalid(
+          `${error.message} for list; pass nextCursor (${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.listRunsNextPage)}) or nextWorkflowCursor (${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.listWorkflowsNextPage)}), or restart with ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.list)}.`,
+        );
+      }
+      throw error;
+    }
+  }
   if (bookmark && "persisted" in bookmark) return { live: [], ...await persisted(pageSize, undefined) };
   let start = 0;
   if (bookmark) {
@@ -465,12 +454,15 @@ function encodeBatchCursor(scope: string, runIds: string[], nextIndex: number): 
  * invalidate the cursor.
  */
 function decodeBatchCursor(value: string, scope: string, runIds: string[]): number {
-  if (!value || value.length > 8192) throw cursorInvalid();
+  const invalidBatch = () => cursorInvalid(
+    `Invalid inspect batch cursor; pass nextCursor with the identical runIds array, or restart with ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.inspectBatch)}.`,
+  );
+  if (typeof value !== "string" || !value || value.length > 8192) throw invalidBatch();
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Record<string, unknown>;
   } catch {
-    throw cursorInvalid();
+    throw invalidBatch();
   }
   if (
     !parsed ||
@@ -480,14 +472,20 @@ function decodeBatchCursor(value: string, scope: string, runIds: string[]): numb
     !Array.isArray(parsed.runIds) ||
     !Number.isSafeInteger(parsed.nextIndex)
   ) {
-    throw cursorInvalid();
+    throw invalidBatch();
   }
-  if (parsed.scope !== scope) throw cursorInvalid("Cursor belongs to a different session or project");
+  if (parsed.scope !== scope) {
+    throw cursorInvalid(
+      `Cursor belongs to a different session or project for inspect; restart with ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.inspectBatch)}.`,
+    );
+  }
   if (JSON.stringify(parsed.runIds) !== JSON.stringify(runIds)) {
-    throw cursorInvalid("Batch cursor does not match the requested run IDs; repeat the identical runIds array to continue paging");
+    throw cursorInvalid(
+      `Batch cursor does not match the requested run IDs for inspect; repeat the identical runIds array to continue paging, or restart with ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.inspectBatch)}.`,
+    );
   }
   const nextIndex = parsed.nextIndex as number;
-  if (nextIndex < 0 || nextIndex > runIds.length) throw cursorInvalid();
+  if (nextIndex < 0 || nextIndex > runIds.length) throw invalidBatch();
   return nextIndex;
 }
 
@@ -504,15 +502,18 @@ function encodeProjectionCursor(runId: string, view: RunInspectionView, offset: 
 }
 
 function decodeProjectionCursor(value: string, runId: string, view: RunInspectionView, text: string): number {
-  if (!value || value.length > 4096) throw cursorInvalid();
+  const invalidInspect = () => cursorInvalid(
+    `Invalid inspect cursor; pass page.nextCursor with the same runId and view, or restart with ${JSON.stringify({ action: "inspect", runIds: [runId], view })}.`,
+  );
+  if (typeof value !== "string" || !value || value.length > 4096) throw invalidInspect();
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Record<string, unknown>;
   } catch {
-    throw cursorInvalid();
+    throw invalidInspect();
   }
   const keys = parsed && typeof parsed === "object" ? Object.keys(parsed).sort().join(",") : "";
-  if (keys !== "kind,offset,revision,runId,v,view" || parsed.v !== 1 || parsed.kind !== "projection-inspect" || parsed.runId !== runId || parsed.view !== view || !Number.isSafeInteger(parsed.offset) || (parsed.offset as number) < 0 || typeof parsed.revision !== "string") throw cursorInvalid();
+  if (keys !== "kind,offset,revision,runId,v,view" || parsed.v !== 1 || parsed.kind !== "projection-inspect" || parsed.runId !== runId || parsed.view !== view || !Number.isSafeInteger(parsed.offset) || (parsed.offset as number) < 0 || typeof parsed.revision !== "string") throw invalidInspect();
   if (parsed.revision !== projectionRevision(text)) throw cursorStale();
   return parsed.offset as number;
 }
@@ -700,7 +701,7 @@ function renderExternalRunsCall(args: Record<string, unknown>, theme: Theme): Te
       : String(args.runId ?? "");
     detail = `inspect ${target} · ${typeof args.view === "string" ? args.view : "summary"}`;
   } else {
-    detail = `list${typeof args.workflowRunId === "string" ? ` · workflow ${args.workflowRunId}` : ""}`;
+    detail = `list${typeof args.workflowRunId === "string" && args.workflowRunId.trim() !== "" ? ` · workflow ${args.workflowRunId.trim()}` : ""}`;
   }
   return new Text(`${theme.bold("External Runs")} ${theme.fg("dim", detail)}`, 0, 0);
 }
@@ -824,7 +825,9 @@ function normalizeInspectSelectors(params: ExternalRunsParams): ExternalRunsPara
     ? undefined
     : params.runIds;
   if (runId !== undefined && runIds !== undefined && runIds.length > 0) {
-    throw invalid("inspect accepts either runId or runIds, not both");
+    throw invalid(
+      `inspect accepts either runId or runIds, not both; e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.inspectSingle)}.`,
+    );
   }
   if (runId === params.runId && runIds === params.runIds) return params;
   return { ...params, runId, runIds };
@@ -850,9 +853,17 @@ export function createExternalRunsTool(
     parameters: externalRunsParameters,
     outputSchema: externalRunsOutputSchema,
     async execute(_toolCallId, params: ExternalRunsParams, signal, onUpdate, ctx: ExtensionContext) {
-      const action = params.action ?? "list";
+      const action = (params.action && (EXTERNAL_RUNS_ACTIONS as readonly string[]).includes(params.action)) ? params.action : "list";
       return await withContract({ tool: "external_runs", action, failureData: null }, async () => {
       if (params.action === "inspect") {
+        if (
+          params.limitBytes !== undefined &&
+          (typeof params.limitBytes !== "number" || !Number.isSafeInteger(params.limitBytes) || params.limitBytes < 4 || params.limitBytes > 65536)
+        ) {
+          throw invalid(
+            `Invalid limitBytes for inspect (must be an integer from 4 to 65536); e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.inspectSingle)}.`,
+          );
+        }
         params = normalizeInspectSelectors(params);
         if (params.runId === undefined && params.runIds !== undefined && params.runIds.length === 1 && params.view !== undefined && params.view !== "summary") {
           params = { ...params, runId: params.runIds[0], runIds: undefined };
@@ -862,30 +873,76 @@ export function createExternalRunsTool(
       const runsDirectory = options.runsDirectory();
 
       if (params.action === "list") {
-        if (params.workflowRunId !== undefined && !WORKFLOW_ID.test(params.workflowRunId)) throw invalid("Invalid workflow run ID");
+        if (
+          params.limit !== undefined &&
+          (typeof params.limit !== "number" || !Number.isSafeInteger(params.limit) || params.limit < 1 || params.limit > 100)
+        ) {
+          throw invalid(
+            `Invalid limit for list (must be an integer from 1 to 100); e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.list)}.`,
+          );
+        }
+        if (
+          params.workflowRunId !== undefined &&
+          (typeof params.workflowRunId !== "string" || (params.workflowRunId.trim() !== "" && !WORKFLOW_ID.test(params.workflowRunId.trim())))
+        ) {
+          throw invalid(
+            `Invalid workflow run ID for list; pass a wf_... ID (${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.listWorkflowChildren)}) or omit workflowRunId (${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.list)}).`,
+          );
+        }
+        const workflowRunId = typeof params.workflowRunId === "string" && params.workflowRunId.trim() !== ""
+          ? params.workflowRunId.trim()
+          : undefined;
+        if (
+          workflowRunId !== undefined &&
+          params.workflowCursor !== undefined &&
+          (typeof params.workflowCursor !== "string" || params.workflowCursor.trim() !== "")
+        ) {
+          throw invalid(
+            `workflowCursor is inapplicable when filtering list by workflowRunId; page child runs with cursor (${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.listRunsNextPage)}) or omit workflowRunId to page workflow roots (${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.listWorkflowsNextPage)}).`,
+          );
+        }
+        if (
+          workflowRunId === undefined &&
+          params.workflowCursor !== undefined &&
+          typeof params.workflowCursor !== "string"
+        ) {
+          throw cursorInvalid(
+            `Invalid workflow list cursor for list; pass nextWorkflowCursor (${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.listWorkflowsNextPage)}), or restart with ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.list)}.`,
+          );
+        }
+        if (
+          params.cursor !== undefined &&
+          typeof params.cursor !== "string"
+        ) {
+          throw cursorInvalid(
+            `Invalid cursor for list; pass nextCursor (${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.listRunsNextPage)}) or nextWorkflowCursor (${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.listWorkflowsNextPage)}), or restart with ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.list)}.`,
+          );
+        }
+        const workflowCursor = typeof params.workflowCursor === "string" ? params.workflowCursor.trim() || undefined : undefined;
+        const cursor = typeof params.cursor === "string" ? params.cursor.trim() || undefined : undefined;
         const workflowDir = getSessionWorkflowDir(ctx);
         // Live state overlays its persisted row on whichever page that row
         // falls, so a live run is never shown as interrupted or listed twice.
         // Live runs with no persisted row yet are paged first, inside the same
         // limit, before the persisted rows begin.
         const registered = new Map(options.registry.list(sessionId, project).map((entry) => [entry.runId, entry]));
-        const runScope = listScope("runs", sessionId, project, params.workflowRunId);
-        const page = params.workflowCursor && !params.cursor
+        const runScope = listScope("runs", sessionId, project, workflowRunId);
+        const page = workflowCursor && !cursor
           ? { live: [], items: [] }
-          : await pageUnpersistedFirst(runScope, params.cursor, Math.max(1, Math.min(100, Math.floor(params.limit ?? 50))),
-            [...registered.values()].filter((entry) => entry.kind === "agent" && (params.workflowRunId === undefined || entry.workflowRunId === params.workflowRunId)),
+          : await pageUnpersistedFirst(runScope, cursor, Math.max(1, Math.min(100, Math.floor(params.limit ?? 50))),
+            [...registered.values()].filter((entry) => entry.kind === "agent" && (workflowRunId === undefined || entry.workflowRunId === workflowRunId)),
             async (entry) => {
               const persisted = await getRunRecord(runsDirectory, entry.runId);
               return !persisted || persisted.parentSessionId !== sessionId || persisted.project !== project
-                || (params.workflowRunId !== undefined && persisted.workflowRunId !== params.workflowRunId);
+                || (workflowRunId !== undefined && persisted.workflowRunId !== workflowRunId);
             },
-            (limit, cursor) => listRunRecords({ runsDirectory, sessionId, project, workflowRunId: params.workflowRunId, limit, cursor }));
-        const historical = params.workflowRunId
+            (limit, c) => listRunRecords({ runsDirectory, sessionId, project, workflowRunId, limit, cursor: c }));
+        const historical = workflowRunId
           ? { live: [], items: [] }
-          : await pageUnpersistedFirst(listScope("workflows", sessionId, project), params.workflowCursor, Math.max(1, Math.min(100, Math.floor(params.limit ?? 100))),
+          : await pageUnpersistedFirst(listScope("workflows", sessionId, project), workflowCursor, Math.max(1, Math.min(100, Math.floor(params.limit ?? 100))),
             [...registered.values()].filter((entry) => entry.kind === "workflow"),
             async (entry) => !workflowDir || !await hasWorkflowJournal(workflowDir, entry.runId, project),
-            async (limit, cursor) => workflowDir ? listWorkflowJournals(workflowDir, project, limit, cursor) : { items: [] });
+            async (limit, c) => workflowDir ? listWorkflowJournals(workflowDir, project, limit, c) : { items: [] });
         const workflowRows: Array<{ legacy: Record<string, unknown>; run: PublicRun }> = [
           ...historical.live.map((entry) => ({ legacy: liveSummary(entry), run: liveWorkflowRun(entry).run })),
           ...historical.items.map((journal) => {
@@ -915,14 +972,26 @@ export function createExternalRunsTool(
 
       if (params.action === "inspect" && params.runIds !== undefined) {
         // normalizeInspectSelectors already guarantees runId is unset here.
-        if (params.view !== undefined && params.view !== "summary") throw invalid('Batch inspect (runIds) only supports view: "summary"');
+        if (params.view !== undefined && params.view !== "summary") {
+          throw invalid(
+            `Batch inspect (runIds) only supports view: "summary"; use ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.inspectBatch)} for batch summary or ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.inspectSingle)} for a single run.`,
+          );
+        }
         const runIds = [...new Set(params.runIds)];
         if (runIds.length === 0 || runIds.length > MAX_BATCH_INSPECT_TARGETS) {
-          throw invalid(`inspect runIds requires 1-${MAX_BATCH_INSPECT_TARGETS} run IDs`);
+          throw invalid(
+            `inspect runIds requires 1-${MAX_BATCH_INSPECT_TARGETS} run IDs; e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.inspectSingle)} or ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.inspectBatch)}.`,
+          );
         }
-        for (const runId of runIds) assertRunId(runId);
+        for (const runId of runIds) assertRunId(runId, "inspect");
+        if (params.cursor !== undefined && typeof params.cursor !== "string") {
+          throw cursorInvalid(
+            `Invalid batch cursor; pass nextCursor verbatim with the identical runIds array, or restart with ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.inspectBatch)}.`,
+          );
+        }
+        const cursor = typeof params.cursor === "string" ? params.cursor.trim() || undefined : undefined;
         const scope = batchCursorScope(sessionId, project);
-        const startIndex = params.cursor ? decodeBatchCursor(params.cursor, scope, runIds) : 0;
+        const startIndex = cursor ? decodeBatchCursor(cursor, scope, runIds) : 0;
         // Resolve (and thereby validate ownership of) every requested target
         // before returning any page — an invalid or cross-session/project
         // target anywhere in the set fails the whole request, not just the
@@ -960,9 +1029,20 @@ export function createExternalRunsTool(
       }
 
       if (params.action === "inspect") {
-        assertRunId(params.runId);
+        if (params.view !== undefined && !SINGLE_INSPECT_VIEWS.includes(params.view as any)) {
+          throw invalid(
+            `Invalid view ${JSON.stringify(params.view)} for inspect; choose ${SINGLE_INSPECT_VIEWS.join(", ")}, e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.inspectSingle)}.`,
+          );
+        }
+        assertRunId(params.runId, "inspect");
         const runId = params.runId;
         const view = params.view ?? "summary";
+        if (params.cursor !== undefined && typeof params.cursor !== "string") {
+          throw cursorInvalid(
+            `Invalid inspect cursor; pass page.nextCursor with the same runId and view, or restart with ${JSON.stringify({ action: "inspect", runIds: [runId], view })}.`,
+          );
+        }
+        const cursor = typeof params.cursor === "string" ? params.cursor.trim() || undefined : undefined;
         const entry = options.registry.get(runId);
         if (entry) assertOwned(entry, sessionId, project);
         const single = (text: string, encoding: "json" | "text", details: Record<string, unknown>, extra: { finalAvailable?: boolean; outputStatus?: string } = {}, contentText = text) => {
@@ -990,11 +1070,11 @@ export function createExternalRunsTool(
             // layer's job (src/external-command.ts's showPages), not this tool's.
             if (!finalAvailable) {
               const status = entry ? (entry.state === "running" ? "running" : entry.outcome?.status) : historical!.status;
-              const page = projectionPage(runId, view, "", params.cursor, params.limitBytes);
+              const page = projectionPage(runId, view, "", cursor, params.limitBytes);
               return single(page.text, "json", { runId, view, text: page.text, finalAvailable: false, status: status ?? "running", nextCursor: page.nextCursor }, { finalAvailable: false });
             }
             const text = JSON.stringify(redactSecrets({ runId, result: workflowResult, finalAvailable: true }));
-            const page = projectionPage(runId, view, text, params.cursor, params.limitBytes);
+            const page = projectionPage(runId, view, text, cursor, params.limitBytes);
             return single(page.text, "json", { runId, view, text: page.text, finalAvailable: true, nextCursor: page.nextCursor }, { finalAvailable: true });
           }
           const source = view === "launch"
@@ -1008,7 +1088,7 @@ export function createExternalRunsTool(
               ? { runId, result: entry ? entry.outcome?.result : historical?.result }
               : { runId, status: entry?.outcome?.status ?? historical?.status ?? "running", error: entry?.outcome?.error ?? historical?.error };
           const text = JSON.stringify(redactSecrets(source));
-          const page = projectionPage(runId, view, text, params.cursor, params.limitBytes);
+          const page = projectionPage(runId, view, text, cursor, params.limitBytes);
           return single(page.text, "json", { runId, view, text: page.text, nextCursor: page.nextCursor });
         }
         // A wf_... ID that resolved to neither a live nor a historical
@@ -1020,25 +1100,35 @@ export function createExternalRunsTool(
         if (!entry) assertOwnedRecord(durable, sessionId, project);
         if (view === "summary") {
           const source = entry ? redactSecrets(projectLiveAgent(entry)) : historicalAgent(durable!);
-          const page = projectionPage(runId, view, JSON.stringify(source), params.cursor, params.limitBytes);
+          const page = projectionPage(runId, view, JSON.stringify(source), cursor, params.limitBytes);
           return single(page.text, "json", { runId, view, text: page.text, nextCursor: page.nextCursor });
         }
         // A settled successful result in the registry is the verified final
         // answer, so a final reference stays followable even when evidence
         // was never persisted.
-        if (view === "final" && entry?.kind === "agent" && entry.outcome?.status === "done" && entry.outcome.result !== undefined && (!params.cursor || isProjectionCursor(params.cursor))) {
-          const page = projectionPage(runId, view, liveAgentOutput(entry) ?? "", params.cursor, params.limitBytes);
+        if (view === "final" && entry?.kind === "agent" && entry.outcome?.status === "done" && entry.outcome.result !== undefined && (!cursor || isProjectionCursor(cursor))) {
+          const page = projectionPage(runId, view, liveAgentOutput(entry) ?? "", cursor, params.limitBytes);
           return single(page.text, "text", { runId, view, text: page.text, finalAvailable: true, outputStatus: "final", nextCursor: page.nextCursor }, { finalAvailable: true, outputStatus: "final" });
         }
-        if (view === "output" && entry?.kind === "agent" && (!params.cursor || isProjectionCursor(params.cursor))) {
+        if (view === "output" && entry?.kind === "agent" && (!cursor || isProjectionCursor(cursor))) {
           const text = liveAgentOutput(entry);
           if (text !== undefined) {
-            const page = projectionPage(runId, view, text, params.cursor, params.limitBytes);
+            const page = projectionPage(runId, view, text, cursor, params.limitBytes);
             const outputStatus = entry.state === "running" ? "preliminary" : entry.outcome?.outcome === "succeeded" ? "final" : "interrupted";
             return single(page.text, "text", { runId, view, text: page.text, outputStatus, nextCursor: page.nextCursor }, { outputStatus });
           }
         }
-        const page = await inspectRun({ runsDirectory, runId, view, limitBytes: params.limitBytes, cursor: params.cursor, live: entry?.state === "running" });
+        let page: Awaited<ReturnType<typeof inspectRun>>;
+        try {
+          page = await inspectRun({ runsDirectory, runId, view, limitBytes: params.limitBytes, cursor, live: entry?.state === "running" });
+        } catch (error) {
+          if (error instanceof ExpectedFlowError && error.code === "cursor_invalid") {
+            throw cursorInvalid(
+              `${error.message} for inspect; pass nextCursor with matching runId and view, or restart with ${JSON.stringify({ action: "inspect", runIds: [runId], view })}.`,
+            );
+          }
+          throw error;
+        }
         const text = pageItemsText(page);
         // view: "final" stays a clean, narration-free canonical-answer
         // surface — a bounded empty page (finalAvailable:false) when
@@ -1050,16 +1140,25 @@ export function createExternalRunsTool(
       }
 
       if (params.action === "cancel") {
+        if (params.reason !== undefined && (typeof params.reason !== "string" || params.reason.length > 512)) {
+          throw invalid(
+            `Invalid reason for cancel (must be a string up to 512 characters); e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.cancelWithReason)}.`,
+          );
+        }
         const rawRunIds = params.runIds;
         if (rawRunIds?.length && params.runId?.trim()) {
-          throw invalid("cancel accepts either runId or runIds, not both");
+          throw invalid(
+            `cancel accepts either runId or runIds, not both; e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.cancel)}.`,
+          );
         }
         if (rawRunIds && rawRunIds.length > 1) {
-          throw invalid("cancel targets one run at a time");
+          throw invalid(
+            `cancel targets one run at a time; e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.cancel)}.`,
+          );
         }
         const targetRunId = (rawRunIds && rawRunIds.length === 1 ? rawRunIds[0] : undefined)
           ?? (typeof params.runId === "string" && params.runId.trim() !== "" ? params.runId.trim() : undefined);
-        assertRunId(targetRunId);
+        assertRunId(targetRunId, "cancel");
         const cancelled = (status: "requested" | "terminal") => ({
           ...result(status === "requested" ? `Cancellation requested for ${targetRunId}.` : `${targetRunId} is already terminal.`, { runId: targetRunId, status }),
           data: { runId: targetRunId, status },
@@ -1067,7 +1166,8 @@ export function createExternalRunsTool(
         const entry = options.registry.get(targetRunId);
         if (entry) {
           assertOwned(entry, sessionId, project);
-          const status = options.registry.cancel(targetRunId, params.reason ?? "cancelled by external_runs");
+          const reason = params.reason?.trim() ? params.reason.trim() : "cancelled by external_runs";
+          const status = options.registry.cancel(targetRunId, reason);
           // "unknown" means the entry left the registry between get and cancel.
           if (status === "unknown") throw unavailable();
           return cancelled(status);
@@ -1086,9 +1186,36 @@ export function createExternalRunsTool(
         throw notLive("Run is no longer live in this session; cancellation cannot be confirmed");
       }
 
-      const runIds = [...new Set(params.runIds ?? (params.runId ? [params.runId] : []))];
-      if (runIds.length === 0 || runIds.length > MAX_TARGETS) throw invalid(`wait requires 1-${MAX_TARGETS} run IDs`);
-      for (const runId of runIds) assertRunId(runId);
+      if (params.action === "wait") {
+        if (
+          params.limitBytes !== undefined &&
+          (typeof params.limitBytes !== "number" || !Number.isSafeInteger(params.limitBytes) || params.limitBytes < 4 || params.limitBytes > 65536)
+        ) {
+          throw invalid(
+            `Invalid limitBytes for wait (must be an integer from 4 to 65536); e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.wait)}.`,
+          );
+        }
+        if (params.mode !== undefined && !WAIT_MODES.includes(params.mode as any)) {
+          throw invalid(
+            `Invalid mode ${JSON.stringify(params.mode)} for wait; choose ${WAIT_MODES.join(" or ")}, e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.wait)}.`,
+          );
+        }
+        const rawRunIds = params.runIds;
+        if (rawRunIds?.length && params.runId?.trim()) {
+          throw invalid(
+            `wait accepts either runId or runIds, not both; e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.wait)}.`,
+          );
+        }
+        const rawWaitRunIds = (rawRunIds && rawRunIds.length > 0)
+          ? rawRunIds
+          : (params.runId?.trim() ? [params.runId.trim()] : []);
+        const runIds = [...new Set(rawWaitRunIds)];
+        if (runIds.length === 0 || runIds.length > MAX_WAIT_TARGETS) {
+          throw invalid(
+            `wait requires 1-${MAX_WAIT_TARGETS} run IDs; e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.wait)}.`,
+          );
+        }
+        for (const runId of runIds) assertRunId(runId, "wait");
       const known: WaitTarget[] = await Promise.all(runIds.map(async (runId): Promise<WaitTarget> => {
         const entry = options.registry.get(runId);
         if (entry) {
@@ -1201,6 +1328,13 @@ export function createExternalRunsTool(
         data: { mode, completed, pending: finalPending },
         warnings: [...warnings],
       };
+      }
+
+      throw invalid(
+        params.action === undefined
+          ? `Missing required action; choose list, inspect, wait, or cancel, e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.list)}.`
+          : `Invalid action ${JSON.stringify(params.action)}; choose list, inspect, wait, or cancel, e.g. ${JSON.stringify(EXTERNAL_RUNS_EXAMPLES.list)}.`,
+      );
       });
     },
     renderCall(args, theme) {

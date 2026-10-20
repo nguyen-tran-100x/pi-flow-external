@@ -7,6 +7,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { filterProfilesForModelRegistry } from "./core/model.ts";
+import { formatExternalRunsActionGuidance } from "./contract/runs.ts";
 import { disabledHarnessMessage, loadExternalCatalog } from "./profiles.ts";
 import { loadHarnessConfigs } from "./harnesses.ts";
 import {
@@ -102,6 +103,8 @@ APIs: agent(prompt, { description, label, role, harness, subagent_type, permissi
 Execution mode: foreground is blocking by default when you need the result next, including parallel workflows. Pass background:true when you have independent local work (read, edit, bash) that does not touch files the workflow may change, or on an explicit background request; do that independent work first and never launch background then immediately wait. Ending a turn does not stop a background run: if the user asks to leave the workflow running, switch tasks, or check back later, report the runId and work on the other task or end your turn without waiting; otherwise retain the ID and collect it after your independent work finishes. Both modes support parallel([() => agent(...), ...]) under the same maxConcurrentSubagents cap; sequential awaits stay serial. Background changes neither permissions nor budget enforcement. Its stable handle means accepted, not completed; the receipt is not a live monitor, though UI sessions show active background runs in the status bar and wake the session with a follow-up message when an uncollected background run settles across turns. Keep the session open: orderly shutdown requests cancellation with bounded cleanup; crashes leave uncertain evidence and restart does not adopt work. Topic usage contains the worked collection guidance.
 
 Supervision: external_runs selects targets with runIds. list takes optional workflowRunId, cursor, workflowCursor, and limit. inspect with one id reads summary/output/diagnostics/final/launch and pages with cursor and limitBytes; several ids (up to 20) batch summary only. wait takes up to 100 runIds in mode any or all; check ok for the operation, then each completed run's outcome and pending IDs. It never cancels pending work and can return early on a failed workflow even in all mode. If settlement is already known, skip wait. Use inline successful output when available; otherwise inspect final and follow nextCursor. Failures need diagnostics/output, not final. Follow nextWorkflowCursor for workflow listings too. Foreground-call interruption cancels that call; interrupting wait only stops waiting. Use cancel with one id and an optional reason to stop background work. Cancelling a workflow stops active children; cancelling one child is a catchable workflow error. There is no live steering.
+
+${formatExternalRunsActionGuidance()}
 
 Replay: resumeFromRunId works only with persisted scriptPath and starts an explicit new attempt. It reuses the longest unchanged prefix of successful child calls; the first changed/failed/cancelled/timed-out call and its suffix run again. Script recomposition is cheap, but child reruns can cost money or repeat side effects. There is no automatic repaired-script replay.
 

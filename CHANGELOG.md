@@ -2,6 +2,14 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.1.1-external.0] - 2026-10-20
+
+### Changed
+- Simplified `external_runs` action-specific argument guidance (#87):
+  - Consolidated `externalRunsParameters`, `EXTERNAL_RUNS_PARAMETER_KEYS`, `EXTERNAL_RUNS_EXAMPLES`, `EXTERNAL_RUNS_ACTION_SPECS`, and `formatExternalRunsActionGuidance()` in `src/contract/runs.ts` so schema descriptions, on-demand `external_help` (`usage` and `workflow`), and documentation share one authoritative per-action argument matrix (`required`, `optional`, and dynamically derived `inapplicable` fields).
+  - Clarified single-target `inspect` (`1` ID, views `summary|output|diagnostics|final|launch`) vs. batch `inspect` (`2-20` IDs, `summary` view only), and `cursor` (`runs` stream) vs. `workflowCursor` (`workflows` stream, inapplicable when `workflowRunId` filters to one workflow's children).
+  - Updated `request_invalid` and `cursor_invalid` error messages across `list`, `inspect`, `wait`, and `cancel` to identify the applicable action and include a minimal valid JSON call example while preserving #62 forced-placeholder normalization and supervision invariants.
+
 ## [5.1.0-external.0] - 2026-10-19
 
 ### Added
