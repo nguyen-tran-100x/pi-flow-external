@@ -23,7 +23,13 @@ export class ConfigModal implements Component {
   private remember = false;
   private cancelBusy?: () => void;
   focused = true;
-  constructor(private tui: TUI, private theme: Theme, private cancelled: (data:string)=>boolean = data=>matchesKey(data,Key.escape), private externalEditorKey:(data:string)=>boolean = ()=>false) {}
+  private tui: TUI;
+  private theme: Theme;
+  private cancelled: (data:string)=>boolean;
+  private externalEditorKey: (data:string)=>boolean;
+  constructor(tui: TUI, theme: Theme, cancelled: (data:string)=>boolean = data=>matchesKey(data,Key.escape), externalEditorKey:(data:string)=>boolean = ()=>false) {
+    this.tui = tui; this.theme = theme; this.cancelled = cancelled; this.externalEditorKey = externalEditorKey;
+  }
   private listTheme() {
     return { selectedPrefix: (s:string)=>this.theme.fg('accent',s), selectedText: (s:string)=>this.theme.fg('accent',s), description:(s:string)=>this.theme.fg('muted',s),scrollInfo:(s:string)=>this.theme.fg('dim',s),noMatch:(s:string)=>this.theme.fg('warning',s) };
   }

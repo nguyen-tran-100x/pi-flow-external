@@ -17,6 +17,7 @@ import { resolve, join } from "node:path";
 import { resolveExecutionProfile } from './execution-config.ts';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { getCurrentSystemMessage } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 import {
@@ -257,18 +258,43 @@ function isSubagentProgressNode(value: unknown): value is SubagentProgressNode {
   );
 }
 
+// Launcher names a transcript saved before the #85 rename declares, and their replacements.
+const RENAMED_LAUNCHERS: ReadonlyArray<readonly [legacy: string, current: string]> = [
+  ["Agent", EXTERNAL_DELEGATE_TOOL],
+  ["workflow", EXTERNAL_WORKFLOW_TOOL],
+];
+
+// Launchers the user kept off on the command line. Pi applies `--tools` modifiers
+// to the restored loadout but does not expose them to extensions, and a `-name`
+// modifier cannot match the legacy name it replaces. `--no-tools` turns
+// extension tools off by default. SDK `tools` options are not visible here.
+function cliExcludedLaunchers(argv: readonly string[]): Set<string> {
+  if (argv.includes("--no-tools") || argv.includes("-nt")) return new Set(RENAMED_LAUNCHERS.map(([, current]) => current));
+  let tools: string[] = [];
+  argv.forEach((arg, index) => {
+    if ((arg === "--tools" || arg === "-t") && index + 1 < argv.length) {
+      tools = argv[index + 1].split(",").map((name) => name.trim());
+    }
+  });
+  return new Set(tools.filter((name) => name.startsWith("-")).map((name) => name.slice(1)));
+}
+
 // Pi restores a resumed or tree-navigated session's tool loadout from its
-// transcript. A transcript saved before the #85 rename names `Agent`/`workflow`,
-// which no longer register, while `external_help`/`external_runs` kept their
-// names and stay active. A companion active with neither launcher is that
-// stale loadout, not a user choice, so both launchers come back. Disabling only
-// one launcher is respected. setActiveTools ignores an unregistered workflow tool.
-function restoreRenamedLaunchers(pi: ExtensionAPI): void {
+// transcript. A legacy name no longer registers, so its replacement stays off.
+// Activate the replacement for each legacy name the restored loadout declares,
+// unless the loadout also declares the replacement (it was then turned off on
+// purpose) or the command line excludes it. setActiveTools ignores a tool that
+// is not registered or not allowed.
+function restoreRenamedLaunchers(pi: ExtensionAPI, ctx: ExtensionContext, argv: readonly string[] = process.argv): void {
+  const declared = new Set(
+    (getCurrentSystemMessage(ctx.sessionManager.buildSessionProjection().messages)?.toolsAdded ?? []).map((tool) => tool.name),
+  );
   const active = pi.getActiveTools();
-  const launchers = [EXTERNAL_DELEGATE_TOOL, EXTERNAL_WORKFLOW_TOOL];
-  if (launchers.some((name) => active.includes(name))) return;
-  if (!active.includes("external_help") && !active.includes("external_runs")) return;
-  pi.setActiveTools([...active, ...launchers]);
+  const excluded = cliExcludedLaunchers(argv);
+  const restored = RENAMED_LAUNCHERS
+    .filter(([legacy, current]) => declared.has(legacy) && !declared.has(current) && !active.includes(current) && !excluded.has(current))
+    .map(([, current]) => current);
+  if (restored.length > 0) pi.setActiveTools([...active, ...restored]);
 }
 
 function createUsageStatusState(): SubagentUsageStatusState {
@@ -1033,9 +1059,9 @@ export function createSubagentExtension(options: SubagentExtensionOptions = {}):
       if (activeSessionId) scheduleWakeFlush(activeSessionId);
     });
 
-    pi.on("session_tree", () => restoreRenamedLaunchers(pi));
+    pi.on("session_tree", (_event, ctx) => restoreRenamedLaunchers(pi, ctx));
     pi.on("session_start", (_event, ctx) => {
-      restoreRenamedLaunchers(pi);
+      restoreRenamedLaunchers(pi, ctx);
       const sessionId = ctx.sessionManager.getSessionId();
       rememberSessionContext(ctx, sessionId);
       inAgentTurn = false;

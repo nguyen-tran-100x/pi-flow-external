@@ -41,7 +41,7 @@
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit && vitest run",
-    "e2e": "node --experimental-transform-types scripts/e2e/external.mjs",
+    "e2e": "node scripts/e2e/external.mjs",
     "field-report": "node scripts/field-report.mjs",
     "test": "vitest run"
   },

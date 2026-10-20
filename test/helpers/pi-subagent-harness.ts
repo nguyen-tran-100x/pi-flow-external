@@ -47,6 +47,8 @@ type CreateSessionOptions = {
   piHarnesses?: Record<string, { modelId: string; thinking?: ThinkingLevel }>;
   /** Seed the transcript with a tool loadout, as a session saved by an older install would carry. */
   transcriptToolNames?: string[];
+  /** The SDK `tools` option, as `--tools` passes it. */
+  tools?: string[];
 };
 
 export type HarnessState = {
@@ -249,6 +251,7 @@ const modelRegistry = new ModelRegistry(modelRuntime);
       settingsManager,
       sessionManager,
       resourceLoader,
+      ...(options.tools ? { tools: options.tools } : {}),
     });
     trackSession(session);
     await session.bindExtensions({});

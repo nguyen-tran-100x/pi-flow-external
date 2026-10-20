@@ -1090,8 +1090,11 @@ type ExternalRunsResult = { content: Array<{ type: string; text?: string }>; det
 
 /** A returned external_runs failure, raised with its code so callers recover by code, never by message. */
 class RunsActionError extends Error {
-  constructor(readonly code: string, message: string) {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
     super(message);
+    this.code = code;
   }
 }
 
