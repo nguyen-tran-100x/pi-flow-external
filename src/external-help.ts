@@ -1,15 +1,26 @@
-import { StringEnum } from "@earendil-works/pi-ai";
 import {
   defineTool,
   getAgentDir,
   type ExtensionContext,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { Type, type Static } from "typebox";
-import { filterProfilesForModelRegistry } from "./core/model.ts";
+import { withContract } from "./contract/envelope.ts";
+import {
+  buildContractIndex,
+  buildToolContractDetail,
+  EXTERNAL_HELP_TOOL,
+  externalHelpOutputSchema,
+  externalHelpParameters,
+  formatContractIndex,
+  formatToolContractDetail,
+  PUBLIC_TOOL_NAMES,
+  type ExternalHelpParams,
+  type PublicToolName,
+} from "./contract/help.ts";
 import { formatExternalRunsActionGuidance } from "./contract/runs.ts";
+import { formatWorkflowHelpersLine } from "./contract/workflow.ts";
+import { ExpectedFlowError, type FlowErrorCode } from "./core/errors.ts";
 import { disabledHarnessMessage, loadExternalCatalog } from "./profiles.ts";
-import { loadHarnessConfigs } from "./harnesses.ts";
 import {
   EXTERNAL_HELP_PROMPT_SNIPPET,
   formatExternalRoleHelp,
@@ -19,16 +30,11 @@ import {
 import { listSavedWorkflows } from "./workflow/registry.ts";
 import { EXTERNAL_HARNESSES, type ExternalHarness } from "./types.ts";
 
-const externalHelpParameters = Type.Object({
-  topic: StringEnum(["usage", "roles", "permissions", "workflow"] as const, {
-    description: "Help topic: usage playbook, role descriptions/configured profile availability, harness permissions, or workflow syntax and saved workflows.",
-  }),
-  harness: Type.Optional(Type.String({
-    description: "Optional harness filter for roles or permissions: agy, claude, codex, grok, muse, opencode, or a registered pi-* harness. usage and workflow describe every harness.",
-  })),
-});
+export { externalHelpParameters, type ExternalHelpParams } from "./contract/help.ts";
 
-type ExternalHelpParams = Static<typeof externalHelpParameters>;
+export type ExternalHelpDetails =
+  | { topic: ExternalHelpParams["topic"]; harness?: string; tool?: string }
+  | { error: string; code: FlowErrorCode };
 
 export interface CreateExternalHelpToolOptions {
   getDefaultHarness: (ctx: ExtensionContext) => string;
@@ -85,8 +91,18 @@ function validateHarnessFilter(harness: string | undefined, configuredPiHarnesse
   if (harness === undefined) return;
   if ((EXTERNAL_HARNESSES as readonly string[]).includes(harness) || configuredPiHarnesses.has(harness)) return;
   const configured = [...EXTERNAL_HARNESSES, ...configuredPiHarnesses].sort();
-  throw new Error(
+  throw new ExpectedFlowError(
+    "selection_invalid",
     `Unknown harness "${harness}". Configured harnesses: ${configured.join(", ") || "none"}.`,
+  );
+}
+
+function validateToolFilter(tool: string | undefined): asserts tool is PublicToolName | undefined {
+  if (tool === undefined) return;
+  if ((PUBLIC_TOOL_NAMES as readonly string[]).includes(tool)) return;
+  throw new ExpectedFlowError(
+    "selection_invalid",
+    `Unknown public tool "${tool}". Public tools: ${PUBLIC_TOOL_NAMES.join(", ")}.`,
   );
 }
 
@@ -98,7 +114,7 @@ Provide exactly one workflow source: name, scriptPath, or script. Every script s
 
 Before calling external_workflow, explain the purpose, assignments, parallel/sequential order, allowed changes, and deliverable in plain language. Add the same roadmap as meta.phases: [{ title: "Review", detail: "Who checks what and whether files may change" }, ...], and call phase("Review") when that stage actually starts. Planned phases and details remain visible on the live card; they describe intent, while child states/activity show observed execution. Explain material plan changes and follow the user's existing approval policy. The briefing is an agent instruction, not a runtime-verified chat message; phases remain optional for existing saved scripts. Use external_runs inspect view launch to retrieve the recorded purpose and plan (also includes sensitive script/args); background receipts are not live monitors.
 
-APIs: agent(prompt, { description, label, role, harness, subagent_type, permission, max_budget_usd, resume, context, schema, phase }); parallel(thunks); pipeline(items, ...stages); phase(title); log(message). Globals: args and cwd. Agent options other than the profile selector are optional. "description" is the common task-name option shared with the direct external_delegate tool; "label" is a compatible alias — set only one, or both to the same value. Choose role/harness or legacy exact subagent_type, never both. Use unique descriptions/labels and clear task prompts. An agent() succeeds with its value or throws ChildRunError { runId, outcome, message, outputRef, diagnosticsRef }; catch optional failures explicitly. Uncaught failures terminate the workflow and drain siblings. Helpers never convert failures to null. Context options: {mode:"none"} (default), {mode:"recent",turns:N} (positive integer, includes current user turn), or {mode:"full"} (available context after compaction). All children share invocation-time context/settings; earlier child results must still be passed explicitly. Context excludes thinking/system instructions and pending calls; images and snapshots over 1 MiB fail without truncation. Context sharing cannot be combined with resume. Use schema for results that control branching or aggregation. Imports, filesystem globals, Date APIs, and Math.random() are unavailable.
+${formatWorkflowHelpersLine()} Agent options other than the profile selector are optional. "description" is the common task-name option shared with the direct external_delegate tool; "label" is a compatible alias — set only one, or both to the same value. Choose role/harness or legacy exact subagent_type, never both. Use unique descriptions/labels and clear task prompts. An agent() succeeds with its value or throws ChildRunError { runId, outcome, message, outputRef, diagnosticsRef }; catch optional failures explicitly. Uncaught failures terminate the workflow and drain siblings. Helpers never convert failures to null. Context options: {mode:"none"} (default), {mode:"recent",turns:N} (positive integer, includes current user turn), or {mode:"full"} (available context after compaction). All children share invocation-time context/settings; earlier child results must still be passed explicitly. Context excludes thinking/system instructions and pending calls; images and snapshots over 1 MiB fail without truncation. Context sharing cannot be combined with resume. Use schema for results that control branching or aggregation. Imports, filesystem globals, Date APIs, and Math.random() are unavailable.
 
 Execution mode: foreground is blocking by default when you need the result next, including parallel workflows. Pass background:true when you have independent local work (read, edit, bash) that does not touch files the workflow may change, or on an explicit background request; do that independent work first and never launch background then immediately wait. Ending a turn does not stop a background run: if the user asks to leave the workflow running, switch tasks, or check back later, report the runId and work on the other task or end your turn without waiting; otherwise retain the ID and collect it after your independent work finishes. Both modes support parallel([() => agent(...), ...]) under the same maxConcurrentSubagents cap; sequential awaits stay serial. Background changes neither permissions nor budget enforcement. Its stable handle means accepted, not completed; the receipt is not a live monitor, though UI sessions show active background runs in the status bar and wake the session with a follow-up message when an uncollected background run settles across turns. Keep the session open: orderly shutdown requests cancellation with bounded cleanup; crashes leave uncertain evidence and restart does not adopt work. Topic usage contains the worked collection guidance.
 
@@ -131,50 +147,75 @@ ${formatSavedWorkflows(workflows)}`;
 
 export function createExternalHelpTool(
   options: CreateExternalHelpToolOptions,
-): ToolDefinition<typeof externalHelpParameters, { topic: ExternalHelpParams["topic"]; harness?: string }> {
+): ToolDefinition<typeof externalHelpParameters, ExternalHelpDetails> {
   return defineTool({
-    name: "external_help",
+    name: EXTERNAL_HELP_TOOL,
     label: "External Help",
-    description: "Read-only help on demand: usage playbook, role details, permission behavior, and workflow usage (including background runs, external_runs supervision syntax, and replay) or saved-workflow discovery.",
+    description: "Read-only help on demand: usage playbook, role details, permission behavior, workflow usage (including background runs, external_runs supervision syntax, and replay) or saved-workflow discovery, and public tool contracts.",
     promptSnippet: EXTERNAL_HELP_PROMPT_SNIPPET,
     parameters: externalHelpParameters,
+    outputSchema: externalHelpOutputSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      // A schema-conversion layer downstream of this tool's declaration may
-      // present `harness` as required (#62); treat a blank/whitespace
-      // placeholder as omitted. usage and workflow describe every harness, so
-      // an explicit harness is not a filter and does not error.
-      const harness = params.harness?.trim() ? params.harness.trim() : undefined;
-      let text: string;
-      const catalog = loadExternalCatalog(getAgentDir());
-      const harnessConfigs = catalog.harnessConfigs;
-      const configuredPiHarnesses = new Set(harnessConfigs.keys());
-      // usage and workflow describe every harness. A supplied harness is not a
-      // filter, including a blank placeholder forced by a downstream schema.
-      if (params.topic === "roles" || params.topic === "permissions") {
-        validateHarnessFilter(harness, configuredPiHarnesses);
-      }
-      if (params.topic === "usage") {
-        text = formatUsagePlaybook();
-      } else if (params.topic === "roles") {
-        text = catalog.blocked ? catalog.diagnostics.join(" ")
-          : harness && catalog.disabledHarnesses.has(harness) ? disabledHarnessMessage(harness)
-          : formatExternalRoleHelp(catalog.profiles, options.getDefaultHarness(ctx), harness);
-      } else if (params.topic === "permissions") {
-        text = permissionHelp(harness, configuredPiHarnesses);
-      } else {
-        const wfText = workflowHelp(options.workflowEnabled, listSavedWorkflows({
-          agentDir: getAgentDir(),
-          cwd: ctx.cwd,
-          projectTrusted: isProjectTrusted(ctx),
-        }));
-        text = harness
-          ? `${wfText}\n\nNote: Workflows orchestrate across multiple harnesses (including "${harness}"); workflow syntax is uniform across backends.`
-          : wfText;
-      }
-      return {
-        content: [{ type: "text" as const, text }],
-        details: { topic: params.topic, ...(harness ? { harness } : {}) },
-      };
+      return withContract<ExternalHelpDetails>({ tool: EXTERNAL_HELP_TOOL, action: "help", failureData: null }, async () => {
+        // A schema-conversion layer downstream of this tool's declaration may
+        // present `harness` or `tool` as required (#62); treat a blank/whitespace
+        // placeholder as omitted. usage, workflow, and contracts describe every
+        // harness, so an explicit harness is not a filter and does not error.
+        const harness = params.harness?.trim() ? params.harness.trim() : undefined;
+        const tool = params.tool?.trim() ? params.tool.trim() : undefined;
+        if (params.topic === "contracts") {
+          validateToolFilter(tool);
+          if (!tool) {
+            const index = buildContractIndex(options.workflowEnabled);
+            const text = formatContractIndex(index);
+            return {
+              content: [{ type: "text" as const, text }],
+              details: { topic: "contracts" as const },
+              data: { topic: "contracts" as const, index },
+            };
+          }
+          const contract = buildToolContractDetail(tool, options.workflowEnabled);
+          const text = formatToolContractDetail(contract);
+          return {
+            content: [{ type: "text" as const, text }],
+            details: { topic: "contracts" as const, tool },
+            data: { topic: "contracts" as const, tool, contract },
+          };
+        }
+
+        let text: string;
+        const catalog = loadExternalCatalog(getAgentDir());
+        const harnessConfigs = catalog.harnessConfigs;
+        const configuredPiHarnesses = new Set(harnessConfigs.keys());
+        // usage and workflow describe every harness. A supplied harness is not a
+        // filter, including a blank placeholder forced by a downstream schema.
+        if (params.topic === "roles" || params.topic === "permissions") {
+          validateHarnessFilter(harness, configuredPiHarnesses);
+        }
+        if (params.topic === "usage") {
+          text = formatUsagePlaybook();
+        } else if (params.topic === "roles") {
+          text = catalog.blocked ? catalog.diagnostics.join(" ")
+            : harness && catalog.disabledHarnesses.has(harness) ? disabledHarnessMessage(harness)
+            : formatExternalRoleHelp(catalog.profiles, options.getDefaultHarness(ctx), harness);
+        } else if (params.topic === "permissions") {
+          text = permissionHelp(harness, configuredPiHarnesses);
+        } else {
+          const wfText = workflowHelp(options.workflowEnabled, listSavedWorkflows({
+            agentDir: getAgentDir(),
+            cwd: ctx.cwd,
+            projectTrusted: isProjectTrusted(ctx),
+          }));
+          text = harness
+            ? `${wfText}\n\nNote: Workflows orchestrate across multiple harnesses (including "${harness}"); workflow syntax is uniform across backends.`
+            : wfText;
+        }
+        return {
+          content: [{ type: "text" as const, text }],
+          details: { topic: params.topic, ...(harness ? { harness } : {}), ...(tool ? { tool } : {}) },
+          data: { topic: params.topic, ...(harness ? { harness } : {}), ...(tool ? { tool } : {}), text },
+        };
+      });
     },
   });
 }

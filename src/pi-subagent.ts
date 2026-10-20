@@ -1,5 +1,6 @@
 import { ExpectedFlowError } from "./core/errors.ts";
-import { agentOutputSchema, agentReceipt } from "./contract/agent.ts";
+import { agentOutputSchema, agentReceipt, agentToolParameters } from "./contract/agent.ts";
+export { agentToolParameters } from "./contract/agent.ts";
 import type { PublicError } from "./contract/envelope.ts";
 import { liveAgentRun, liveWorkflowRun, type PublicRun } from "./contract/run.ts";
 import { getRunRecord } from "./core/run-inspection.ts";
@@ -19,7 +20,6 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { getCurrentSystemMessage } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
-import { Type, type Static } from "typebox";
 import {
   AGENT_PROMPT_SNIPPET,
   buildCoordinatorPrompt,
@@ -40,7 +40,7 @@ import { getBackendAgentLabel } from "./core/display.ts";
 import { describeMissingModel, filterProfilesForModelRegistry, resolveProfileModel, usesPiBackend } from "./core/model.ts";
 import { attachRunRecordIdentity, CHILD_EXCLUDED_TOOLS, spawnSubagent } from "./core/spawn.ts";
 import { createRunRecord } from "./core/run-record.ts";
-import { captureParentContext, parentContextSchema, prepareParentContext } from "./core/parent-context.ts";
+import { captureParentContext, prepareParentContext } from "./core/parent-context.ts";
 import { resolvePermission, permissionLabel, resolveEffectivePermissionTier } from "./core/permissions.ts";
 import { pruneRunRecords, runRecordsDirectory } from "./core/retention.ts";
 import { createProgressNode, textResult, type AgentToolResult } from "./core/progress.ts";
@@ -71,60 +71,6 @@ const STATUS_KEY = "pi-flow";
 const BG_STATUS_KEY = "pi-flow-runs";
 const BACKGROUND_SETTLED_CUSTOM_TYPE = "pi-flow-background-settled";
 const DEFAULT_BACKGROUND_WAKE_DEBOUNCE_MS = 150;
-
-export const agentToolParameters = Type.Object({
-  context: Type.Optional(parentContextSchema),
-  description: Type.String({
-    description: "A short 3-5 word description of the task, used for UI display and routing context.",
-  }),
-  prompt: Type.String({
-    description: "The task briefing to send to the subagent.",
-  }),
-  background: Type.Optional(Type.Boolean({
-    description: "Defaults to false: wait for settlement. True returns a stable session-owned run handle after registration; work may already be settled. Pass true when you have independent local work to do first (do it, then call external_runs wait), or when the user asks to leave work running across turns (report the runId and do not call external_runs wait this turn). UI sessions show active background runs in the status bar and wake the session when an uncollected run settles across turns. Keep the owning session open.",
-  })),
-  role: Type.Optional(Type.String({
-    minLength: 1,
-    description: "The built-in or custom external role to use, such as reviewer. Required unless using legacy subagent_type.",
-  })),
-  harness: Type.Optional(Type.String({
-    minLength: 1,
-    description: "Optional harness override: agy, claude, codex, grok, muse, opencode, or a registered named pi-* harness. Omit to use the effective default harness: a trusted project override (.pi/pi-flow-external/settings.json) when present, else the global defaultHarness setting.",
-  })),
-  subagent_type: Type.Optional(Type.String({
-    minLength: 1,
-    description: "Legacy exact-profile escape hatch. Cannot be combined with role or harness.",
-  })),
-  permission: Type.Optional(
-    Type.Union([Type.Literal("readonly"), Type.Literal("edit"), Type.Literal("danger")], {
-      description:
-        "Optional permission tier. Omit to use the global defaultPermission (danger unless changed). A role does not grant or limit this. codex and grok map it to --sandbox, claude maps it to a headless permission mode, muse maps it to approval/sandbox flags, opencode uses native tool permission rules (not an OS sandbox), and pi maps it to a curated tool list (not an OS sandbox). Antigravity accepts only danger; readonly and edit are rejected.",
-    }),
-  ),
-  max_budget_usd: Type.Optional(
-    Type.Number({
-      minimum: 0,
-      description:
-        "Optional USD spending cap for this run. Enforced mid-run on Claude Code (native flag); recorded and reported after the run elsewhere.",
-    }),
-  ),
-  resume: Type.Optional(
-    Type.String({
-      description:
-        "Prior run id (from a completed result's evidence id) whose backend conversation should be continued. Must use the same profile backend.",
-    }),
-  ),
-}, {
-  anyOf: [
-    { required: ["role"], not: { required: ["subagent_type"] } },
-    {
-      required: ["subagent_type"],
-      not: { anyOf: [{ required: ["role"] }, { required: ["harness"] }] },
-    },
-  ],
-});
-
-type AgentToolParams = Static<typeof agentToolParameters>;
 
 type AgentRenderProfile = Pick<SubagentProfile, "name" | "backend" | "description">;
 

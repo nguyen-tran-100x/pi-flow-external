@@ -10,6 +10,38 @@ export const workflowOutputSchema = contractEnvelope(EXTERNAL_WORKFLOW_TOOL, Typ
 
 export const HANDLED_CHILD_FAILURES = "handled_child_failures";
 
+export const AGENT_OPTION_KEYS = [
+  "description",
+  "label",
+  "role",
+  "harness",
+  "subagent_type",
+  "permission",
+  "max_budget_usd",
+  "resume",
+  "context",
+  "schema",
+  "phase",
+] as const;
+
+export type AgentOptionKey = (typeof AGENT_OPTION_KEYS)[number];
+
+export const WORKFLOW_HELPERS = {
+  functions: {
+    agent: `agent(prompt, { ${AGENT_OPTION_KEYS.join(", ")} })`,
+    parallel: "parallel(thunks)",
+    pipeline: "pipeline(items, ...stages)",
+    phase: "phase(title)",
+    log: "log(message)",
+  },
+  globals: ["args", "cwd"] as const,
+  agentOptions: AGENT_OPTION_KEYS,
+} as const;
+
+export function formatWorkflowHelpersLine(): string {
+  return `APIs: ${Object.values(WORKFLOW_HELPERS.functions).join("; ")}. Globals: ${WORKFLOW_HELPERS.globals.join(" and ")}.`;
+}
+
 /**
  * The public receipt for one registered workflow. A foreground root that
  * succeeded after handling child failures stays ok, with a warning; an

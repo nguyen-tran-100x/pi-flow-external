@@ -1,3 +1,4 @@
+import { AGENT_OPTION_KEYS, type AgentOptionKey } from "../contract/workflow.ts";
 import { parseParentContext, type ParentContext } from "../core/parent-context.ts";
 
 export interface NormalizedAgentOptions {
@@ -39,7 +40,11 @@ function optionalString(value: unknown, name: string): string | undefined {
 export function normalizeAgentOptions(value: unknown): NormalizedAgentOptions {
   if (value === undefined || value === null) return {};
   if (typeof value !== "object") throw new TypeError("agent options must be an object");
-  const options = value as Record<string, unknown>;
+  const raw = value as Record<string, unknown>;
+  const options: Partial<Record<AgentOptionKey, unknown>> = {};
+  for (const key of AGENT_OPTION_KEYS) {
+    if (key in raw) options[key] = raw[key];
+  }
   const permission = options.permission;
   if (permission !== undefined && !["readonly", "edit", "danger"].includes(permission as string)) {
     throw new TypeError("agent permission must be readonly, edit, or danger");

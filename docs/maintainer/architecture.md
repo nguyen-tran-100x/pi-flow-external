@@ -100,7 +100,7 @@ Parent history is absent by default. `src/core/parent-context.ts` freezes opt-in
 
 ## 6. Progress, receipts and supervision
 
-`src/core/progress.ts` supplies live presentation. `run-record.ts` writes private best-effort redacted records; `run-registry.ts` owns live work; `run-inspection.ts` pages durable evidence; `run-projection.ts` unifies live/durable/workflow timing and task identity. `src/external-runs.ts` and `/external runs` share the readers. Render modules do not create a separate evidence format.
+`src/core/progress.ts` supplies live presentation. `run-record.ts` writes private best-effort redacted records; `run-registry.ts` owns live work; `run-inspection.ts` pages durable evidence; `run-projection.ts` unifies live/durable/workflow timing and task identity. `src/external-runs.ts` and `/external runs` share the readers. `src/contract/{envelope,run,agent,workflow,runs,help}.ts` owns the versioned public contract envelopes, `agentToolParameters`, `AGENT_OPTION_KEYS` / `WORKFLOW_HELPERS`, and `PUBLIC_TOOLS` contract discovery served by `src/external-help.ts`. Render modules do not create a separate evidence format.
 
 Background work belongs to the originating session, not a daemon. List/inspect/wait/cancel are session/project scoped. Wait observes rather than cancels work, and its interruption only stops waiting. `final` exposes only the verified canonical terminal result. Output/diagnostics and workflow children have cursor navigation; unknown, incomplete and damaged evidence are not success. Live elapsed/activity age requires confirmed registry ownership, not a persisted running-looking status.
 
