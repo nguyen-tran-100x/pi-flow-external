@@ -39,6 +39,22 @@ test("fake Codex produces verified final, scoped receipt and collection",async()
     assert.equal(call('inspect',{runId:run.runId,sessionId:sid},env).collected,true);
   }finally{await rm(base,{recursive:true,force:true});}
 });
+test("cancel marks a live run as cancelled and hides final collection",async()=>{
+  const base=await mkdtemp(join(tmpdir(),'flow-claude-cancel-'));
+  try {
+    const bin=join(base,'codex-slow');
+    await writeFile(bin,'#!/usr/bin/env node\nsetTimeout(()=>process.stdout.write("late"),15000)\n',{mode:0o755});
+    const env={...process.env,FLOW_CLAUDE_RUNS_DIR:join(base,'runs'),FLOW_CLAUDE_CODEX_BIN:bin};
+    const sid='cancel-session';
+    const r=call('launch',{sessionId:sid,cwd:base,task:'Read only'},env);
+    assert.equal(call('cancel',{runId:r.runId,sessionId:sid},env).state,'cancelled');
+    const record=call('inspect',{runId:r.runId,sessionId:sid},env);
+    assert.equal(record.state,'cancelled');
+    assert.equal(record.finalAvailable,false);
+    assert.equal(call('collect',{runId:r.runId,sessionId:sid},env).finalAvailable,false);
+  }finally{await rm(base,{recursive:true,force:true});}
+});
+
 test("bad input fails before launch",async()=>{
   const base=await mkdtemp(join(tmpdir(),'flow-claude-bad-'));
   try{
