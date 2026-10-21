@@ -31,7 +31,7 @@ async function appendEvent(id, obj) {
 }
 async function change(id, patch) {
   const row = await safeRead(id);
-  if (TERMINAL.has(row.state) && patch.state !== row.state) return row;
+  if (TERMINAL.has(row.state) && patch.state !== undefined && patch.state !== row.state) return row;
   const update = {...row, ...patch, updatedAt:now()};
   await writeState(update); return update;
 }
