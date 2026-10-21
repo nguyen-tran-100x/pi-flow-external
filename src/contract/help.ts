@@ -1,5 +1,6 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type, type Static, type TSchema } from "typebox";
+import { buildCapabilityRecord } from "../core/capabilities.ts";
 import { EXTERNAL_DELEGATE_TOOL, EXTERNAL_WORKFLOW_TOOL } from "../tool-names.ts";
 import { USAGE_ONE_AGENT, usageWorkflowScript } from "../prompts.ts";
 import { workflowToolParameters } from "../workflow/source.ts";
@@ -9,7 +10,7 @@ import { EXTERNAL_RUNS_ACTION_SPECS, EXTERNAL_RUNS_EXAMPLES, externalRunsOutputS
 import { formatWorkflowHelpersLine, HANDLED_CHILD_FAILURES, WORKFLOW_HELPERS, workflowOutputSchema } from "./workflow.ts";
 
 export const EXTERNAL_HELP_TOOL = "external_help" as const;
-export const EXTERNAL_HELP_TOPICS = ["usage", "roles", "permissions", "workflow", "contracts"] as const;
+export const EXTERNAL_HELP_TOPICS = ["usage", "roles", "permissions", "workflow", "contracts", "capabilities"] as const;
 export const PUBLIC_TOOL_NAMES = [
   EXTERNAL_DELEGATE_TOOL,
   EXTERNAL_WORKFLOW_TOOL,
@@ -25,11 +26,11 @@ export const CONTRACT_INDEX_MAX_BYTES = 1536;
 export const externalHelpParameters = Type.Object({
   topic: StringEnum(EXTERNAL_HELP_TOPICS, {
     description:
-      "Help topic: usage playbook, role descriptions/configured profile availability, harness permissions, workflow syntax and saved workflows, or public tool contracts.",
+      "Help topic: usage playbook, role descriptions/configured profile availability, harness permissions, workflow syntax and saved workflows, public tool contracts, or per-harness capabilities.",
   }),
   harness: Type.Optional(Type.String({
     description:
-      "Optional harness filter for roles or permissions: agy, claude, codex, grok, muse, opencode, or a registered pi-* harness. usage, workflow, and contracts describe every harness.",
+      "Optional harness filter for roles, permissions, or capabilities: agy, claude, codex, grok, muse, opencode, or a registered pi-* harness. Omit on capabilities for the compact index. usage, workflow, and contracts describe every harness.",
   })),
   tool: Type.Optional(Type.String({
     description:
@@ -112,10 +113,81 @@ const contractsTopicDataSchema = Type.Union([
   }),
 ]);
 
+export const permissionTierCapabilitySchema = Type.Object({
+  supported: Type.Boolean(),
+  enforced: Type.Boolean(),
+  caveat: Type.Optional(Type.String()),
+  tools: Type.Optional(Type.Array(Type.String())),
+});
+
+export const capabilityRecordSchema = Type.Object({
+  harness: Type.String(),
+  backend: strings("agy", "claude", "codex", "grok", "muse", "opencode", "pi"),
+  boundary: strings("external_cli", "pi_sdk"),
+  configuration: Type.Object({
+    state: strings("built_in", "registered", "invalid"),
+    enabled: Type.Boolean(),
+    diagnostics: Type.Optional(Type.Array(Type.String())),
+    model: Type.Optional(Type.String()),
+    thinking: Type.Optional(Type.String()),
+    preset: Type.Optional(strings("minimal", "skills")),
+  }),
+  readiness: Type.Literal("not_probed"),
+  workflowChildSchema: Type.Object({
+    support: strings("supported", "unsupported"),
+    mechanism: strings("cli_flag", "schema_file", "injected_tool", "none"),
+  }),
+  resume: Type.Object({
+    support: strings("supported", "unsupported"),
+    mechanism: Type.Optional(Type.String()),
+    conditions: Type.Array(Type.String()),
+  }),
+  budget: strings("enforced", "not_enforced"),
+  cost: Type.Object({
+    kind: strings("native", "estimated", "partial", "unknown"),
+    conditions: Type.Array(Type.String()),
+  }),
+  retries: Type.Object({
+    extension: strings("none", "once_on_infrastructure"),
+    native: strings("none", "internal", "unknown"),
+  }),
+  nestedAgentDetection: Type.Boolean(),
+  permissions: Type.Object({
+    default: strings("readonly", "edit", "danger"),
+    tiers: Type.Object({
+      readonly: permissionTierCapabilitySchema,
+      edit: permissionTierCapabilitySchema,
+      danger: permissionTierCapabilitySchema,
+    }),
+    caveats: Type.Array(Type.String()),
+  }),
+  context: Type.Object({
+    modes: Type.Tuple([Type.Literal("none"), Type.Literal("recent"), Type.Literal("full")]),
+    maxBytes: Type.Integer({ minimum: 1 }),
+    resumeConflict: Type.Literal(true),
+  }),
+  resources: Type.Optional(
+    Type.Object({
+      skills: strings("none", "user", "user_and_project"),
+      extensions: Type.Literal("none"),
+      promptTemplates: Type.Literal("none"),
+      themes: Type.Literal("none"),
+    }),
+  ),
+});
+
+export type CapabilityRecordSchema = Static<typeof capabilityRecordSchema>;
+
+const capabilitiesTopicDataSchema = Type.Object({
+  topic: Type.Literal("capabilities"),
+  harness: Type.Optional(Type.String()),
+  harnesses: Type.Array(capabilityRecordSchema),
+});
+
 export const externalHelpOutputSchema = contractEnvelope(
   EXTERNAL_HELP_TOOL,
   Type.Literal("help"),
-  Type.Union([proseTopicDataSchema, contractsTopicDataSchema]),
+  Type.Union([proseTopicDataSchema, contractsTopicDataSchema, capabilitiesTopicDataSchema]),
   Type.Null(),
 );
 
@@ -372,14 +444,15 @@ export const PUBLIC_TOOLS: Record<PublicToolName, PublicToolSpec> = {
     tool: EXTERNAL_HELP_TOOL,
     contractVersion: 1,
     actions: ["help"],
-    purpose: "Read-only help for usage, roles, permissions, workflows, and contracts.",
+    purpose: "Read-only help for usage, roles, permissions, workflows, contracts, and capabilities.",
     input: externalHelpParameters,
     output: externalHelpOutputSchema,
     semantics: [
       "Read-only discovery: spawns no CLIs, reads no credentials, calls no providers, and writes no files.",
       "Blank/whitespace harness and tool placeholders normalize to omitted (#62).",
-      "Unknown harness on roles/permissions or unknown tool on contracts returns ok:false with code 'selection_invalid' and data:null.",
-      "Prose topics (usage, roles, permissions, workflow) return data:{topic, harness?, text}; contracts returns data:{topic:'contracts', index} or data:{topic:'contracts', tool, contract}.",
+      "Unknown harness on roles/permissions/capabilities or unknown tool on contracts returns ok:false with code 'selection_invalid' and data:null.",
+      "Prose topics (usage, roles, permissions, workflow) return data:{topic, harness?, text}; contracts returns data:{topic:'contracts', index} or data:{topic:'contracts', tool, contract}; capabilities returns data:{topic:'capabilities', harness?, harnesses}.",
+      "Capability readiness is always 'not_probed' (configuration does not prove installation or authentication); every harness returns PublicRun receipts while workflowChildSchema describes workflow agent({ schema }) support.",
     ],
     examples: [
       {
@@ -407,6 +480,30 @@ export const PUBLIC_TOOLS: Record<PublicToolName, PublicToolSpec> = {
               rules: [CONTRACT_INDEX_RULES[0]],
               nativeDiscovery: CONTRACT_NATIVE_DISCOVERY_NOTE,
             },
+          },
+          warnings: [],
+        },
+      },
+      {
+        label: "capabilities_detail",
+        input: { topic: "capabilities", harness: "claude" },
+        output: {
+          contractVersion: 1,
+          tool: EXTERNAL_HELP_TOOL,
+          action: "help",
+          observedAt: EXAMPLE_OBSERVED_AT,
+          ok: true,
+          data: {
+            topic: "capabilities",
+            harness: "claude",
+            harnesses: [
+              buildCapabilityRecord({
+                harness: "claude",
+                backend: "claude",
+                configuration: { state: "built_in", enabled: true },
+                options: { effectiveUid: 501, platform: "linux", defaultPermission: "danger" },
+              }),
+            ],
           },
           warnings: [],
         },

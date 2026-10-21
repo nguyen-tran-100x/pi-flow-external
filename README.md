@@ -226,5 +226,5 @@ The direct delegation tool `Agent` is now `external_delegate`, with no alias. Up
 - **[Supervision &amp; Runtime](docs/supervision-and-runtime.md):** `external_runs` actions, cursor pagination, batch inspect, and byte budgets.
 - **[Workflows](docs/workflows.md):** `external_workflow`, plain-language plans, live phases, error handling (`ChildRunError`), and replay cache.
 - **[Workflow Tool Rename](docs/migration-workflow-to-external-workflow.md):** `workflow` → `external_workflow`, with no alias.
-- **[Public Contract](docs/public-contract.md):** Contract envelope definitions (`external_delegate`, `external_workflow`, `external_runs`, `external_help`), `external_help({ topic: "contracts", tool? })` discovery, and explicit context-handoff guidance for Pi codemode consumers.
+- **[Public Contract](docs/public-contract.md):** Contract envelope definitions (`external_delegate`, `external_workflow`, `external_runs`, `external_help`), `external_help({ topic: "contracts" | "capabilities" })` discovery, and explicit context-handoff guidance for Pi codemode consumers.
 - **[Troubleshooting](docs/troubleshooting.md):** Common errors, authentication checks, and `pi-cc-extensions` renderer compatibility.

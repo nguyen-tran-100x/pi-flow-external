@@ -38,6 +38,7 @@ import type {
 } from "../types.ts";
 import { selectorHarness } from "../profiles.ts";
 import { PI_TIER_ACTIVE_TOOLS, resolvePermission, resolveEffectivePermissionTier, unsupportedPermissionReason } from "./permissions.ts";
+import { BACKEND_CAPABILITIES } from "./capabilities.ts";
 import { resolveResume } from "./resume.ts";
 import { formatParentContext, type ParentContextReceipt } from "./parent-context.ts";
 import { createRunRecord, type RunRecord } from "./run-record.ts";
@@ -259,7 +260,7 @@ function resolvedRunReceipt(input: {
     },
     ...(input.maxBudgetUsd !== undefined ? { maxBudgetUsd: input.maxBudgetUsd } : {}),
     // Budgets are enforced mid-run only where the backend supports a native cap (claude).
-    ...(input.maxBudgetUsd !== undefined && input.backend !== "claude" ? { budgetEnforceable: false as const } : {}),
+    ...(input.maxBudgetUsd !== undefined && BACKEND_CAPABILITIES[input.backend].budget !== "enforced" ? { budgetEnforceable: false as const } : {}),
   };
 }
 
@@ -430,7 +431,7 @@ export async function spawnSubagent(params: SpawnSubagentParams): Promise<AgentT
       permissionEffective: permission,
       timeoutMs: params.timeoutMs,
       maxBudgetUsd: params.maxBudgetUsd ?? null,
-      budgetEnforced: (params.maxBudgetUsd ?? 0) > 0 && params.profile.backend === "claude",
+      budgetEnforced: (params.maxBudgetUsd ?? 0) > 0 && BACKEND_CAPABILITIES[params.profile.backend].budget === "enforced",
       resumeRunId: params.resumeRunId ?? null,
     },
   });

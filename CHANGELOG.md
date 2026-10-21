@@ -2,6 +2,21 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.4.0-external.0] - 2026-10-20
+
+### Added
+- Read-only per-harness capability discovery in `external_help` (#79):
+  - `external_help({ topic: "capabilities", harness? })` returns `{ topic: "capabilities", harness?, harnesses: CapabilityRecord[] }` backed by `BACKEND_CAPABILITIES` (`src/core/capabilities.ts`) plus derived permission, context (`PARENT_CONTEXT_MAX_BYTES`), and Pi resource facts without spawning processes, reading credentials, calling providers, or writing files.
+  - Omitting `harness` renders a compact one-line-per-harness summary (`enabled`, supported `tiers`, `workflowChildSchema`, `resume`, `budget`, `cost`) across all selectable harnesses (or the six built-in harnesses marked `configuration.state: "invalid"` with `diagnostics` when settings are blocked, without guessing registered `pi-*` names); passing `harness` renders the full capability record.
+  - Capability records separate `configuration` (`built_in | registered | invalid`, `enabled`, `diagnostics?`, `model?`, `thinking?`, `preset?`) from `readiness: "not_probed"`, distinguish Flow's universal `PublicRun` operational receipts from `workflowChildSchema` (`agent({ schema })`) support, and preserve platform/UID/preset conditions (`agy` danger-only, `claude` effective UID 0 `auto` mode, `grok` Linux-only readonly network blocking, `muse` `--yolo` workspace trust, `opencode` standalone application rules, and `pi-*` curated tools and `minimal`/`skills` resource presets).
+
+### Changed
+- `external_help({ topic: "permissions", harness? })` now generates backend permission descriptions from `PI_TIER_ACTIVE_TOOLS`, `unsupportedPermissionReason`, `resolvePermission`, `buildPermissionArgs`, and `BACKEND_CAPABILITIES[backend].permissionCaveats`, listing each Pi tier's exact tools (`readonly (read/grep/find/ls)`, `edit (read/grep/find/ls/edit/write)`, `danger (read/bash/edit/write)`) rather than a flat union.
+- Budget-enforcement checks in `src/core/spawn.ts` and `src/core/subagent-render.ts` now read `BACKEND_CAPABILITIES[backend].budget`.
+
+### Fixed
+- Active in-process Pi subagent rows now render `Pi SDK child · host access` instead of `external host access` (`src/core/subagent-render.ts`).
+
 ## [5.3.0-external.0] - 2026-10-20
 
 ### Added
