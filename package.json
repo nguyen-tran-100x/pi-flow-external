@@ -1,6 +1,6 @@
 {
   "name": "@tranhoangnguyen0310/pi-flow-external",
-  "version": "5.4.0-external.0",
+  "version": "5.4.1-external.0",
   "description": "External Claude Code, Codex CLI, Antigravity, Grok Build CLI, Muse Code, and OpenCode delegation for pi.",
   "type": "module",
   "main": "./index.ts",
@@ -10,6 +10,7 @@
     "src",
     "scripts/field-report.mjs",
     "assets",
+    "skills",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
@@ -18,6 +19,7 @@
     "docs/configuration-reference.md",
     "docs/supervision-and-runtime.md",
     "docs/workflows.md",
+    "docs/orchestration-playbook.md",
     "docs/troubleshooting.md",
     "docs/migration-v4-to-v5.md",
     "docs/migration-agent-to-external-delegate.md",
@@ -66,7 +68,10 @@
     "extensions": [
       "./index.ts"
     ],
-    "image": "https://raw.githubusercontent.com/tranhoangnguyen03/pi-flow-external/main/assets/pi-flow.png"
+    "image": "https://raw.githubusercontent.com/tranhoangnguyen03/pi-flow-external/main/assets/pi-flow.png",
+    "skills": [
+      "./skills/pi-flow-orchestration"
+    ]
   },
   "engines": {
     "node": ">=22.19.0"

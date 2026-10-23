@@ -2,22 +2,21 @@
 
 All notable changes to pi-flow external are documented here.
 
-## [5.4.0-external.0] - 2026-10-20
-
-### Added
-- Read-only per-harness capability discovery in `external_help` (#79):
-  - `external_help({ topic: "capabilities", harness? })` returns `{ topic: "capabilities", harness?, harnesses: CapabilityRecord[] }` backed by `BACKEND_CAPABILITIES` (`src/core/capabilities.ts`) plus derived permission, context (`PARENT_CONTEXT_MAX_BYTES`), and Pi resource facts without spawning processes, reading credentials, calling providers, or writing files.
-  - Omitting `harness` renders a compact one-line-per-harness summary (`enabled`, supported `tiers`, `workflowChildSchema`, `resume`, `budget`, `cost`) across all selectable harnesses (or the six built-in harnesses marked `configuration.state: "invalid"` with `diagnostics` when settings are blocked, without guessing registered `pi-*` names); passing `harness` renders the full capability record.
-  - Capability records separate `configuration` (`built_in | registered | invalid`, `enabled`, `diagnostics?`, `model?`, `thinking?`, `preset?`) from `readiness: "not_probed"`, distinguish Flow's universal `PublicRun` operational receipts from `workflowChildSchema` (`agent({ schema })`) support, and preserve platform/UID/preset conditions (`agy` danger-only, `claude` effective UID 0 `auto` mode, `grok` Linux-only readonly network blocking, `muse` `--yolo` workspace trust, `opencode` standalone application rules, and `pi-*` curated tools and `minimal`/`skills` resource presets).
-
-### Changed
-- `external_help({ topic: "permissions", harness? })` now generates backend permission descriptions from `PI_TIER_ACTIVE_TOOLS`, `unsupportedPermissionReason`, `resolvePermission`, `buildPermissionArgs`, and `BACKEND_CAPABILITIES[backend].permissionCaveats`, listing each Pi tier's exact tools (`readonly (read/grep/find/ls)`, `edit (read/grep/find/ls/edit/write)`, `danger (read/bash/edit/write)`) rather than a flat union.
-- Budget-enforcement checks in `src/core/spawn.ts` and `src/core/subagent-render.ts` now read `BACKEND_CAPABILITIES[backend].budget`.
+## [5.4.1-external.0] - 2026-10-23
 
 ### Fixed
-- Capability discovery no longer marks an entire OpenCode harness invalid when role-specific settings repair conflicting harness defaults; resolved bindings retain their existing validation.
-- Generated Claude permission flags now use the current effective UID by default, matching the root-user `--permission-mode auto` launch behavior.
-- Active in-process Pi subagent rows now render `Pi SDK child · host access` instead of `external host access` (`src/core/subagent-render.ts`).
+- Bounded-repair now rejects non-Codex harnesses before starting any editor. Supporting edit and readonly permissions alone does not provide the shell access and structured output required by QA.
+- Repair guidance now states the Codex-only limit and requires checks compatible with its read-only sandbox. Regression tests cover rejection before edits and default/explicit Codex execution.
+
+## [5.4.0-external.0] - 2026-10-23
+
+### Added
+- Packaged native Pi `pi-flow-orchestration` skill with on-demand pattern selection, Flow-specific permission and handoff rules, and four tested scripts: parallel sweep, branch-and-converge, adversarial review, and user-authorized bounded repair.
+- New orchestration playbook and offline evaluation guide. Deterministic tests run the recipe scripts through the actual workflow runtime with stubbed children, including failure and authorization cases.
+
+### Changed
+- Coordinator/workflow tool guidance now points agents to the skill when tasks genuinely need multiple agents, while preferring direct delegation for simple tasks. `external_help` workflow guidance links to the skill, and the README/workflow docs explain discovery and usage.
+- npm manifest now ships and declares the skill and its recipes; no new runtime helpers, permission semantics, or workflow APIs were introduced.
 
 ## [5.3.0-external.0] - 2026-10-20
 

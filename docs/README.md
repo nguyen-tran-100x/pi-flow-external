@@ -15,6 +15,7 @@ Core reference guides for configuring and using the extension with Pi:
 | **[Configuration Reference](configuration-reference.md)** | Interactive TUI navigation, settings v5 schema, sparse overrides, and full 34-row command table. |
 | **[Supervision & Runtime](supervision-and-runtime.md)** | Live terminal intent cards, background execution, the `external_runs` tool, and local evidence storage. |
 | **[Workflows](workflows.md)** | Scripting API, parallel fan-out (`parallel()`), `ChildRunError` handling, structured schemas, and replay cache. |
+| **[Orchestration Playbook](orchestration-playbook.md)** | Packaged orchestration skill, pattern selection, sample prompts, and executable recipes. |
 | **[Troubleshooting](troubleshooting.md)** | Diagnostic recipes, authentication checks, and `pi-cc-extensions` renderer compatibility. |
 | **[Migration Guide (v4 → v5)](migration-v4-to-v5.md)** | Upgrading from older configurations, backups, command mappings, and safe file purging. |
 | **[Tool Rename Migration (`Agent` → `external_delegate`)](migration-agent-to-external-delegate.md)** | Updating codemode calls, hooks, receipt checks, and renderer exclusions after the direct tool rename. |
