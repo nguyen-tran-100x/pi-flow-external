@@ -108,7 +108,7 @@ function validateToolFilter(tool: string | undefined): asserts tool is PublicToo
 
 function workflowHelp(workflowsEnabled: boolean, workflows: ReturnType<typeof listSavedWorkflows>): string {
   const availability = workflowsEnabled ? "The external_workflow tool is enabled." : "The external_workflow tool is disabled for this extension instance.";
-  return `${availability} It runs trusted JavaScript, not a sandbox.
+  return `${availability} It runs trusted JavaScript, not a sandbox. For choosing when and how to split work, read the installed pi-flow-orchestration skill and its recipes; docs/orchestration-playbook.md is the user guide. Simple tasks should use external_delegate rather than a workflow.
 
 Provide exactly one workflow source: name, scriptPath, or script. Every script starts with the literal current declaration export const meta = { apiVersion: 1, name, description }, calls agent() at least once, awaits every started call, and returns JSON-serializable data. Missing/unsupported API versions fail before any child launches. Project .pi/workflows are visible only when the project is trusted.
 

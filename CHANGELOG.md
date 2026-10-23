@@ -2,6 +2,16 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.4.0-external.0] - 2026-10-23
+
+### Added
+- Packaged native Pi `pi-flow-orchestration` skill with on-demand pattern selection, Flow-specific permission and handoff rules, and four tested scripts: parallel sweep, branch-and-converge, adversarial review, and user-authorized bounded repair.
+- New orchestration playbook and offline evaluation guide. Deterministic tests run the recipe scripts through the actual workflow runtime with stubbed children, including failure and authorization cases.
+
+### Changed
+- Coordinator/workflow tool guidance now points agents to the skill when tasks genuinely need multiple agents, while preferring direct delegation for simple tasks. `external_help` workflow guidance links to the skill, and the README/workflow docs explain discovery and usage.
+- npm manifest now ships and declares the skill and its recipes; no new runtime helpers, permission semantics, or workflow APIs were introduced.
+
 ## [5.3.0-external.0] - 2026-10-20
 
 ### Added
