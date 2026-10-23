@@ -348,19 +348,11 @@ export function buildPiCapabilityResources(
 function harnessLevelDiagnostics(
   harness: string,
   catalogDiagnostics: readonly string[],
-  opencodeHarnessSettings: { model?: string; thinking?: string } | undefined,
 ): string[] {
   const problems: string[] = [];
   for (const diag of catalogDiagnostics) {
     if (diag.startsWith("Invalid override directory ") && diag.endsWith(`/${harness}`)) {
       problems.push(diag);
-    }
-  }
-  if (harness === "opencode" && opencodeHarnessSettings?.thinking && opencodeHarnessSettings.thinking !== "native") {
-    if (!opencodeHarnessSettings.model || opencodeHarnessSettings.model === "native") {
-      problems.push("OpenCode effort variant requires a pinned model.");
-    } else if (opencodeHarnessSettings.model.includes("#")) {
-      problems.push("OpenCode model already has a #variant; do not also set effort.");
     }
   }
   return problems;
@@ -466,7 +458,8 @@ export function buildCapabilityRecords(options: BuildCapabilitiesOptions): Capab
     }
 
     const hSettings = loadedSettings.settings.harnessSettings?.[harness];
-    const problems = harnessLevelDiagnostics(harness, catalog.diagnostics, hSettings);
+    // Binding overrides can repair defaults; the catalog validates each resolved binding.
+    const problems = harnessLevelDiagnostics(harness, catalog.diagnostics);
     if (isBuiltIn) {
       const model = hSettings?.model && hSettings.model !== "native" ? hSettings.model : undefined;
       const thinking = hSettings?.thinking;
@@ -585,7 +578,8 @@ export function formatBackendPermissionHelp(
   options: Pick<CapabilityEnvironmentOptions, "effectiveUid" | "platform"> = {},
 ): string {
   const descriptor = BACKEND_CAPABILITIES[backend];
-  const tiers = buildPermissionTierCapabilities(backend, options);
+  const effectiveUid = options.effectiveUid ?? process.geteuid?.();
+  const tiers = buildPermissionTierCapabilities(backend, { ...options, effectiveUid });
   if (backend === "pi") {
     const tierTools = PERMISSION_TIERS.map((tier) => `${tier} (${tiers[tier].tools!.join("/")})`).join(", ");
     return `pi-* (named Pi harness configs): Tiers gate a curated built-in tool list per tier: ${tierTools}. ${descriptor.permissionCaveats.join(" ")}`;
@@ -595,7 +589,7 @@ export function formatBackendPermissionHelp(
     if (!info.supported) {
       return `${tier} is unsupported (${info.caveat ?? "rejected before launch"})`;
     }
-    const args = buildPermissionArgs(tier, backend, { effectiveUid: options.effectiveUid });
+    const args = buildPermissionArgs(tier, backend, { effectiveUid });
     const flagPart = args.length ? `uses ${args.join(" ")}` : "is enforced";
     const caveatPart = info.caveat ? ` (${info.caveat})` : "";
     return `${tier} ${flagPart}${caveatPart}`;

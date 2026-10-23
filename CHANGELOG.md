@@ -15,6 +15,8 @@ All notable changes to pi-flow external are documented here.
 - Budget-enforcement checks in `src/core/spawn.ts` and `src/core/subagent-render.ts` now read `BACKEND_CAPABILITIES[backend].budget`.
 
 ### Fixed
+- Capability discovery no longer marks an entire OpenCode harness invalid when role-specific settings repair conflicting harness defaults; resolved bindings retain their existing validation.
+- Generated Claude permission flags now use the current effective UID by default, matching the root-user `--permission-mode auto` launch behavior.
 - Active in-process Pi subagent rows now render `Pi SDK child · host access` instead of `external host access` (`src/core/subagent-render.ts`).
 
 ## [5.3.0-external.0] - 2026-10-20

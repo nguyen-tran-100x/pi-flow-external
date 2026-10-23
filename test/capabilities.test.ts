@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   agyUsageToSubagentUsage,
   buildAgyArgs,
@@ -12,6 +12,7 @@ import {
 import {
   BACKEND_CAPABILITIES,
   buildCapabilityRecord,
+  buildCapabilityRecords,
   buildPermissionTierCapabilities,
   buildPiCapabilityResources,
   formatBackendPermissionHelp,
@@ -60,6 +61,7 @@ import {
   createPiChildResourceLoader,
   hasNestedAgentActivity,
 } from "../src/core/spawn.ts";
+import { loadExternalCatalog, resolveExternalProfile } from "../src/profiles.ts";
 import type { SubagentBackend, SubagentProfile } from "../src/types.ts";
 import { createStructuredOutputTool } from "../src/workflow/structured-output.ts";
 
@@ -85,6 +87,7 @@ function profile(backend: SubagentBackend): SubagentProfile {
 describe("BACKEND_CAPABILITIES adapter conformance", () => {
   const tempDirs: string[] = [];
   afterEach(() => {
+    vi.restoreAllMocks();
     while (tempDirs.length) rmSync(tempDirs.pop()!, { recursive: true, force: true });
   });
 
@@ -497,6 +500,35 @@ describe("BACKEND_CAPABILITIES adapter conformance", () => {
       }
     },
   );
+
+  it.each([
+    { thinking: "high", roles: { worker: { model: "anthropic/claude-sonnet-4-5" } } },
+    { model: "anthropic/claude-sonnet-4-5#high", thinking: "high", roles: { worker: { thinking: "native" } } },
+  ])("keeps OpenCode enabled when a binding overrides conflicting defaults: %j", (opencode) => {
+    const agentDir = makeTempDir();
+    mkdirSync(join(agentDir, "pi-flow-external"));
+    writeFileSync(join(agentDir, "pi-flow-external", "settings.json"), JSON.stringify({ version: 5, harnesses: { opencode } }));
+    const catalog = loadExternalCatalog(agentDir);
+    expect(catalog.blocked).toBe(false);
+    expect(resolveExternalProfile(catalog.profiles, { harness: "opencode", role: "worker" }, "opencode").configurationError).toBeUndefined();
+    expect(() => resolveExternalProfile(catalog.profiles, { harness: "opencode", role: "explorer" }, "opencode")).toThrow(/OpenCode/);
+    expect(buildCapabilityRecords({ agentDir, harness: "opencode" })[0]!.configuration).toMatchObject({
+      state: "built_in",
+      enabled: true,
+    });
+  });
+
+  it.runIf(typeof process.geteuid === "function").each([0, 501])("matches Claude permission help to launch flags under effective UID %s", (effectiveUid) => {
+    const runtime = process as NodeJS.Process & { geteuid: () => number };
+    vi.spyOn(runtime, "geteuid").mockReturnValue(effectiveUid);
+    for (const override of [undefined, effectiveUid === 0 ? 501 : 0]) {
+      const options = override === undefined ? {} : { effectiveUid: override };
+      const args = buildClaudeArgs({ profile: profile("claude"), thinkingLevel: undefined, ...options });
+      const permissionArgs = buildPermissionArgs("danger", "claude", { effectiveUid: override ?? effectiveUid });
+      expect(args).toEqual(expect.arrayContaining(permissionArgs));
+      expect(formatBackendPermissionHelp("claude", options)).toContain(`danger uses ${permissionArgs.join(" ")}`);
+    }
+  });
 
   it("derives per-tier permissions, platform/UID conditions, context limits, and Pi resources from canonical helpers", async () => {
     for (const backend of ALL_BACKENDS) {
