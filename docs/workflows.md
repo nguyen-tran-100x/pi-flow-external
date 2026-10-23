@@ -2,6 +2,8 @@
 
 The `external_workflow` tool provides trusted JavaScript orchestration across external AI harnesses and in-process Pi models, enabling parallel fan-out, multi-stage pipelines, and structured failure handling. The former `workflow` tool name is not an alias; see the [rename migration guide](migration-workflow-to-external-workflow.md).
 
+**Need help choosing a plan, not just syntax?** Read the installed [pi-flow-orchestration skill](../skills/pi-flow-orchestration/SKILL.md) and [Orchestration Playbook](orchestration-playbook.md). They teach pattern selection and provide tested scripts without adding runtime helpers.
+
 ---
 
 ## Minimal Workflow Structure

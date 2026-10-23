@@ -7,7 +7,7 @@ export const AGENT_PROMPT_SNIPPET =
   "Delegate one task to an external Claude Code, Codex CLI, Antigravity, Grok CLI, Muse Code, OpenCode, or registered Pi harness role.";
 
 export const WORKFLOW_PROMPT_SNIPPET =
-  "Run requested multi-agent orchestration with external roles; use external_help for syntax and saved workflows.";
+  "Run requested multi-agent orchestration with external roles; when useful read the bundled pi-flow-orchestration skill to select the smallest fitting pattern. Use external_help for exact syntax and saved workflows.";
 
 export const EXTERNAL_HELP_PROMPT_SNIPPET =
   "Show the delegation playbook, role details, permission behavior, workflow guidance, or public contracts on demand.";
@@ -92,6 +92,8 @@ export function buildCoordinatorPrompt(
   return `# External delegation
 
 ${formatExternalRoleCatalog(profiles, defaultHarness, configuredHarnessNames)}
+
+For work that truly needs several agents or stages, consult the installed pi-flow-orchestration skill when available. Its on-demand pattern guide helps choose independent sweeps, handoffs, adversarial reviews and bounded repair; it is not a reason to add agents to a simple task. For exact tool syntax, external_help topic workflow remains authoritative.
 
 Own the result and verify it yourself. Do the work directly unless a separate harness, a fresh context, or a bounded parallel review earns the overhead. A role is the job. A harness (${EXTERNAL_HARNESSES.join(", ")}, or a registered pi-* name) is the environment. Prefer the configured default harness unless the user asks for another or the task needs a capability the default lacks. Select both through external_delegate or external_workflow. Follow the user's own approval policy before widening a delegation. This extension has no fixed multi-agent approval threshold.
 

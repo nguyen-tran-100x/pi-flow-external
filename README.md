@@ -164,6 +164,8 @@ See [launch → independent work → collect](docs/supervision-and-runtime.md#ba
 
 ### 3. Multi-Agent Workflows (Parallel Delegation)
 
+**Choosing a good plan:** This package also installs the on-demand [pi-flow-orchestration skill](skills/pi-flow-orchestration/SKILL.md). It teaches Pi when to delegate once, parallelize independent scopes, pass evidence between stages, challenge claims independently, or run a user-authorized bounded repair loop. See the [Orchestration Playbook](docs/orchestration-playbook.md) for sample prompts and [runnable recipes](skills/pi-flow-orchestration/recipes). This is guidance, not a new workflow runtime or mandatory agent count.
+
 For tasks that benefit from multiple perspectives at once:
 
 > **You:** "Run a parallel review: have Claude check for architectural issues while Codex audits test coverage."
@@ -225,6 +227,7 @@ The direct delegation tool `Agent` is now `external_delegate`, with no alias. Up
 - **[Configuration Reference](docs/configuration-reference.md):** Settings v5 JSON schema, sparse inheritance, role overrides, and full command reference.
 - **[Supervision &amp; Runtime](docs/supervision-and-runtime.md):** `external_runs` actions, cursor pagination, batch inspect, and byte budgets.
 - **[Workflows](docs/workflows.md):** `external_workflow`, plain-language plans, live phases, error handling (`ChildRunError`), and replay cache.
+- **[Orchestration Playbook](docs/orchestration-playbook.md):** When to choose patterns, how to invoke the bundled skill, and tested example recipes.
 - **[Workflow Tool Rename](docs/migration-workflow-to-external-workflow.md):** `workflow` → `external_workflow`, with no alias.
 - **[Public Contract](docs/public-contract.md):** Contract envelope definitions (`external_delegate`, `external_workflow`, `external_runs`, `external_help`), `external_help({ topic: "contracts", tool? })` discovery, and explicit context-handoff guidance for Pi codemode consumers.
 - **[Troubleshooting](docs/troubleshooting.md):** Common errors, authentication checks, and `pi-cc-extensions` renderer compatibility.
