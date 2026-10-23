@@ -178,6 +178,35 @@ describe("delegation transparency rendering", () => {
     expect(callText).toContain("Delegating Pi Agent → ");
     expect(callText).toContain("Pi SDK child");
     expect(callText).not.toContain("external CLI");
+
+    const livePi = tool.renderResult?.(
+      {
+        content: [{ type: "text", text: "running" }],
+        details: {
+          description: "Review a diff",
+          subagentType: "pi-deepseek/reviewer",
+          backend: "pi",
+          status: "running",
+          progress: {
+            id: "pi-live",
+            description: "Review a diff",
+            subagentType: "pi-deepseek/reviewer",
+            backend: "pi" as const,
+            status: "running" as const,
+            startedAt: Date.now() - 3_000,
+            activity: ["Reading diff"],
+            activityCount: 1,
+          },
+        } satisfies SubagentToolDetails,
+      },
+      { expanded: false, isPartial: true },
+      theme,
+      { cwd },
+    );
+    const livePiText = renderToText(livePi!);
+    expect(livePiText).toContain("Pi SDK child · host access");
+    expect(livePiText).not.toContain("external host access");
+    expect(livePiText).not.toContain("external CLI");
   });
 
   it("states workflow access once and exposes terminal journal evidence on expansion", () => {

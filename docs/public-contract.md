@@ -25,7 +25,7 @@ Every result carries:
 | `external_delegate` | `delegate` | `{run}` | `{run}`, or `{run: null}` before registration |
 | `external_workflow` | `run` | `{run}` | `{run}`, or `{run: null}` before registration |
 | `external_runs` | the requested action | the action's payload (below) | `null` |
-| `external_help` | `help` | `{topic, harness?, tool?, text}` or `{topic: "contracts", index \| tool, contract}` | `null` |
+| `external_help` | `help` | `{topic, harness?, tool?, text}`, `{topic: "contracts", index \| tool, contract}`, or `{topic: "capabilities", harness?, harnesses}` | `null` |
 
 A failure that has a run keeps that run's evidence. Read-only supervision and help never return partial data on failure.
 
@@ -117,9 +117,12 @@ A host redaction hook that replaces content drops structured content unless it e
 
 Pi generates TypeScript input and discriminated output declarations from the registered schemas through native `searchTools` and `describeTool`. For `external_delegate`, each `anyOf` selector branch (`role` vs `subagent_type`) repeats the shared property definitions and required fields so `describeTool("external_delegate")` renders both branches; JSON Schema `not` exclusions (`role` + `subagent_type` and `subagent_type` + `harness`) are enforced by `validateToolArguments` even though Pi's TypeScript renderer omits `not`.
 
-For Flow-specific semantics, raw JSON schemas, validated example payloads, and workflow helper signatures, call `external_help`:
+For Flow-specific semantics, raw JSON schemas, validated example payloads, workflow helper signatures, and per-harness capabilities, call `external_help`:
 - `external_help({ topic: "contracts" })` returns a compact index (≤ 1.5 KiB) listing `external_delegate`, `external_workflow`, `external_runs`, and `external_help`, whether each is registered (`false` for `external_workflow` when disabled), core contract rules, and a pointer to `describeTool`.
 - `external_help({ topic: "contracts", tool: "external_delegate" })` (or `"external_workflow"`, `"external_runs"`, `"external_help"`) returns `{ tool, contractVersion, registered, actions, purpose, input, output, semantics, examples, helpers? }`, where `input` and `output` come directly from the executable tool definitions and `helpers` on `external_workflow` exposes `WORKFLOW_HELPERS` (`functions`, `globals`, `agentOptions`).
+- `external_help({ topic: "capabilities", harness? })` returns `{ topic: "capabilities", harness?, harnesses: CapabilityRecord[] }` without spawning processes, reading credentials, calling providers, or writing files. Omitting `harness` renders a compact one-line-per-harness summary in `content` (`enabled`, supported `tiers`, `workflowChildSchema`, `resume`, `budget`, `cost`) across all selectable harnesses (or the six built-in harnesses with `configuration.state: "invalid"` and `diagnostics` when settings are blocked, without guessing registered `pi-*` names). Passing `harness` renders the full capability record for that harness: `configuration` (`built_in | registered | invalid`, `enabled`, `diagnostics?`, `model?`, `thinking?`, `preset?`), `readiness: "not_probed"` (configuration does not prove installation or authentication; use `/external config harness test` or `/external doctor`), `workflowChildSchema` (schema-constrained workflow `agent({ schema })` task output, distinct from Flow's operational `PublicRun` receipts which every harness returns), `resume`, `budget` (`"enforced" | "not_enforced"`), `cost` (`"native" | "estimated" | "partial" | "unknown"`), `retries`, `nestedAgentDetection`, `permissions` (`default`, per-tier `supported`/`enforced`/`caveat?`/`tools?`, and backend `caveats`), `context` (`modes`, `maxBytes`, `resumeConflict`), and `resources` (for `pi-*` harnesses, reflecting `preset` and `ctx.isProjectTrusted()`).
+
+Capability configuration describes the harness and its defaults, not every role binding. Role-specific model and effort overrides are validated after resolution; a binding error does not disable the entire harness.
 
 ## Explicit context handoff
 

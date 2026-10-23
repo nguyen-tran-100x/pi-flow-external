@@ -1,6 +1,7 @@
 import { getMarkdownTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Text, TruncatedText, type Component } from "@earendil-works/pi-tui";
 import { getBackendAgentLabel } from "./display.ts";
+import { BACKEND_CAPABILITIES } from "./capabilities.ts";
 import { formatParentContext, type ParentContextReceipt } from "./parent-context.ts";
 import { SPINNER_FRAMES } from "./spinner.ts";
 import type { PermissionTier, SubagentAssistantOutput, SubagentBackend, SubagentRunStatus, SubagentUsage } from "../types.ts";
@@ -173,7 +174,7 @@ function richTitle(node: RenderableSubagentNode): string {
 function formatRuntimeAndUsage(node: RenderableSubagentNode, now: number, showAccess = true): string {
   const parts: string[] = [];
   if (showAccess && isActiveSubagentStatus(node.status)) {
-    parts.push("external host access");
+    parts.push(node.backend === "pi" ? "Pi SDK child · host access" : "external host access");
   }
   if (node.context) {
     const shared = node.context;
@@ -187,7 +188,7 @@ function formatRuntimeAndUsage(node: RenderableSubagentNode, now: number, showAc
   if (node.permissionDenials && node.permissionDenials > 0) {
     parts.push(`${node.permissionDenials} permission denials`);
   }
-  if (node.maxBudgetUsd !== undefined && node.backend && node.backend !== "claude") {
+  if (node.maxBudgetUsd !== undefined && node.backend && BACKEND_CAPABILITIES[node.backend].budget !== "enforced") {
     parts.push("budget unenforceable");
   }
   const startedAt = node.startedAt;

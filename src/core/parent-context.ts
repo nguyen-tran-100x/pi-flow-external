@@ -2,6 +2,8 @@ import { ExpectedFlowError } from "./errors.ts";
 import { buildSessionContext, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 
+export const PARENT_CONTEXT_MAX_BYTES = 1024 * 1024;
+
 export const parentContextSchema = Type.Union([
   Type.Object({ mode: Type.Literal("none") }, { additionalProperties: false }),
   Type.Object({ mode: Type.Literal("recent"), turns: Type.Integer({ minimum: 1 }) }, { additionalProperties: false }),
@@ -104,7 +106,7 @@ export function prepareParentContext(
   const text = JSON.stringify(transcript);
   const bytes = Buffer.byteLength(text, "utf8");
   // ponytail: fixed transport ceiling, backend-specific token budgeting if needed.
-  if (bytes > 1024 * 1024) throw new ExpectedFlowError("context_invalid", "Parent context is too large (over 1 MiB); share fewer turns or provide a text briefing. Nothing was truncated.");
+  if (bytes > PARENT_CONTEXT_MAX_BYTES) throw new ExpectedFlowError("context_invalid", "Parent context is too large (over 1 MiB); share fewer turns or provide a text briefing. Nothing was truncated.");
   const receipt: ParentContextReceipt = { mode: context.mode, ...(context.mode === "recent" ? { requestedTurns: context.turns } : {}), sharedTurns, messages: transcript.length, bytes, compacted };
   return {
     context: receipt,

@@ -170,19 +170,20 @@ it("resolves workflow, external_runs, and external_help typed failures and succe
     const unknown = await tools.external_runs({ action: "inspect", runIds: ["run_missing"] });
     const badHelp = await tools.external_help({ topic: "contracts", tool: "not_a_tool" });
     const contracts = await tools.external_help({ topic: "contracts" });
+    const caps = await tools.external_help({ topic: "capabilities", harness: "pi-test" });
     const ran = await tools.external_workflow({ script: 'export const meta = { apiVersion: 1, name: "probe", description: "d" };\\nreturn await agent("WF_CHILD", { role: "worker", harness: "pi-test" });' });
     const waited = await tools.external_runs({ action: "wait", runIds: [ran.data.run.runId] });
-    return [missing.ok, missing.error.code, unknown.ok, unknown.error.code, badHelp.ok, badHelp.error.code, contracts.ok, contracts.data.index.tools.length, ran.ok, ran.data.run.output.value, waited.data.completed[0].output.value].join(",");`;
+    return [missing.ok, missing.error.code, unknown.ok, unknown.error.code, badHelp.ok, badHelp.error.code, contracts.ok, contracts.data.index.tools.length, caps.ok, caps.data.harnesses[0].readiness, ran.ok, ran.data.run.output.value, waited.data.completed[0].output.value].join(",");`;
   registration.setResponses([
     () => fauxAssistantMessage([fauxToolCall("codemode", { code })]),
     () => fauxAssistantMessage("child ok"),
     () => fauxAssistantMessage("done"),
   ]);
   await session.prompt("Run the workflow contract probe.");
-  expect(scriptOutput(session)).toBe("false,selection_invalid,false,run_unavailable,false,selection_invalid,true,4,true,child ok,child ok");
+  expect(scriptOutput(session)).toBe("false,selection_invalid,false,run_unavailable,false,selection_invalid,true,4,true,not_probed,true,child ok,child ok");
   expect(results.external_workflow.map((result) => result.isError)).toEqual([true, false]);
   expect(results.external_runs.map((result) => result.isError)).toEqual([true, false]);
-  expect(results.external_help.map((result) => result.isError)).toEqual([true, false]);
+  expect(results.external_help.map((result) => result.isError)).toEqual([true, false, false]);
   for (const result of results.external_workflow) expect(Value.Check(workflowOutputSchema, result.structuredContent)).toBe(true);
   for (const result of results.external_runs) expect(Value.Check(externalRunsOutputSchema, result.structuredContent)).toBe(true);
   for (const result of results.external_help) expect(Value.Check(externalHelpOutputSchema, result.structuredContent)).toBe(true);

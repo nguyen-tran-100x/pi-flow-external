@@ -1,4 +1,6 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import childProcess from "node:child_process";
+import fs, { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import fsPromises from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { validateToolArguments } from "@earendil-works/pi-ai";
@@ -6,12 +8,16 @@ import { Value } from "typebox/value";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { agentOutputSchema, agentToolParameters } from "../src/contract/agent.ts";
 import {
+  capabilityRecordSchema,
   CONTRACT_INDEX_MAX_BYTES,
   externalHelpOutputSchema,
   externalHelpParameters,
   PUBLIC_TOOL_NAMES,
   PUBLIC_TOOLS,
 } from "../src/contract/help.ts";
+import { PARENT_CONTEXT_MAX_BYTES } from "../src/core/parent-context.ts";
+import { PI_TIER_ACTIVE_TOOLS } from "../src/core/permissions.ts";
+import * as settingsModule from "../src/settings.ts";
 import {
   EXTERNAL_RUNS_ACTION_SPECS,
   EXTERNAL_RUNS_EXAMPLES,
@@ -154,6 +160,10 @@ describe("external_help unknown harness filter", () => {
       const result = await tool.execute("call-4", { topic: "permissions", harness: "pi-deepseek" }, undefined, undefined, fakeCtx(agentDir));
       const text = (result.content[0] as { text: string }).text;
       expect(text).toContain("pi-*");
+      expect(text).toContain(`readonly (${PI_TIER_ACTIVE_TOOLS.readonly.join("/")})`);
+      expect(text).toContain(`edit (${PI_TIER_ACTIVE_TOOLS.edit.join("/")})`);
+      expect(text).toContain(`danger (${PI_TIER_ACTIVE_TOOLS.danger.join("/")})`);
+      expect(text).not.toContain("read/bash/edit/write/grep/find/ls");
       expect(text).not.toContain("external CLI");
     });
   });
@@ -574,5 +584,201 @@ describe("external_help contracts discovery and workflow helpers", () => {
     );
     expect(payload.globals).toEqual({ args: { flag: 1 }, cwd: "/repo/conformance" });
     expect(payload.echoed).toBe("ok");
+  });
+
+  it("discovers harness capabilities (compact index, per-harness detail, disabled/registered/malformed states, blank placeholders) without spawning processes, calling providers, or writing files", async () => {
+    const agentDir = tempAgentDir();
+    mkdirSync(join(agentDir, "pi-flow-external"), { recursive: true });
+    const settingsPath = join(agentDir, "pi-flow-external", "settings.json");
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        version: 5,
+        defaultPermission: "edit",
+        disabledHarnesses: ["grok", "pi-minimal"],
+        harnesses: {
+          "pi-minimal": { model: "deepseek/deepseek-chat", thinking: "low", preset: "minimal" },
+          "pi-skills": { model: "anthropic/claude-sonnet-4-5", thinking: "high", preset: "skills" },
+        },
+      }),
+    );
+
+    const spawnSpy = vi.spyOn(childProcess, "spawn").mockImplementation(() => {
+      throw new Error("external_help must not spawn child processes");
+    });
+    const execSpy = vi.spyOn(childProcess, "exec").mockImplementation(() => {
+      throw new Error("external_help must not call exec");
+    });
+    const execFileSpy = vi.spyOn(childProcess, "execFile").mockImplementation(() => {
+      throw new Error("external_help must not call execFile");
+    });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+      throw new Error("external_help must not call fetch");
+    });
+    const writeFileSyncSpy = vi.spyOn(fs, "writeFileSync").mockImplementation(() => {
+      throw new Error("external_help must not write files synchronously");
+    });
+    const writeFileAsyncSpy = vi.spyOn(fsPromises, "writeFile").mockImplementation(async () => {
+      throw new Error("external_help must not write files asynchronously");
+    });
+    const saveSettingsSpy = vi.spyOn(settingsModule, "saveExternalSettings").mockImplementation(() => {
+      throw new Error("external_help must not save settings");
+    });
+
+    await withAgentDir(agentDir, async () => {
+      const tool = makeTool(() => "claude", true);
+
+      // 1. Compact index (with blank harness/tool placeholders normalized to omitted)
+      const indexRes = await tool.execute(
+        "cap-index",
+        { topic: "capabilities", harness: "   ", tool: "   " },
+        undefined,
+        undefined,
+        { cwd: agentDir, isProjectTrusted: () => true } as never,
+      );
+      expect(indexRes.isError).toBe(false);
+      expect(indexRes.details).toEqual({ topic: "capabilities" });
+      expect(Value.Check(externalHelpOutputSchema, indexRes.structuredContent)).toBe(true);
+      const indexData = (indexRes.structuredContent as any).data;
+      expect(indexData.topic).toBe("capabilities");
+      expect(indexData.harness).toBeUndefined();
+      expect(indexData.harnesses.map((h: any) => h.harness)).toEqual([
+        "agy",
+        "claude",
+        "codex",
+        "grok",
+        "muse",
+        "opencode",
+        "pi-minimal",
+        "pi-skills",
+      ]);
+      for (const record of indexData.harnesses) {
+        expect(Value.Check(capabilityRecordSchema, record)).toBe(true);
+        expect(record.readiness).toBe("not_probed");
+        expect(record.permissions.default).toBe("edit");
+        expect(record.context).toEqual({
+          modes: ["none", "recent", "full"],
+          maxBytes: PARENT_CONTEXT_MAX_BYTES,
+          resumeConflict: true,
+        });
+      }
+
+      const grokRec = indexData.harnesses.find((h: any) => h.harness === "grok");
+      expect(grokRec.configuration).toEqual({ state: "built_in", enabled: false });
+      const piMinRec = indexData.harnesses.find((h: any) => h.harness === "pi-minimal");
+      expect(piMinRec.configuration).toEqual({
+        state: "registered",
+        enabled: false,
+        model: "deepseek/deepseek-chat",
+        thinking: "low",
+        preset: "minimal",
+      });
+      expect(piMinRec.resources).toEqual({
+        skills: "none",
+        extensions: "none",
+        promptTemplates: "none",
+        themes: "none",
+      });
+      const piSkillsTrusted = indexData.harnesses.find((h: any) => h.harness === "pi-skills");
+      expect(piSkillsTrusted.resources.skills).toBe("user_and_project");
+
+      const indexText = (indexRes.content[0] as { text: string }).text;
+      expect(indexText).toContain("readiness: not_probed");
+      expect(indexText).toContain("structured PublicRun receipts");
+      expect(indexText).toContain("- agy [external_cli, built_in (enabled)]: tiers=danger · childSchema=supported(cli_flag) · resume=supported(--conversation) · budget=not_enforced · cost=unknown");
+      expect(indexText).toContain("- claude [external_cli, built_in (enabled)]: tiers=readonly/edit/danger · childSchema=supported(cli_flag) · resume=supported(--resume) · budget=enforced · cost=native");
+      expect(indexText).toContain("- opencode [external_cli, built_in (enabled)]: tiers=readonly/edit/danger · childSchema=unsupported · resume=supported(--session) · budget=not_enforced · cost=partial");
+      expect(indexText).toContain("- pi-skills [pi_sdk, registered (enabled), model=anthropic/claude-sonnet-4-5, preset=skills]: tiers=readonly/edit/danger · childSchema=supported(injected_tool) · resume=unsupported · budget=not_enforced · cost=native");
+
+      // 2. Single-harness detail on untrusted project reflects skills="user" for preset="skills"
+      const piSkillsUntrusted = await tool.execute(
+        "cap-pi-skills-untrusted",
+        { topic: "capabilities", harness: "pi-skills" },
+        undefined,
+        undefined,
+        { cwd: agentDir, isProjectTrusted: () => false } as never,
+      );
+      expect(piSkillsUntrusted.isError).toBe(false);
+      expect(piSkillsUntrusted.details).toEqual({ topic: "capabilities", harness: "pi-skills" });
+      expect(Value.Check(externalHelpOutputSchema, piSkillsUntrusted.structuredContent)).toBe(true);
+      const singleRec = (piSkillsUntrusted.structuredContent as any).data.harnesses[0];
+      expect(singleRec.harness).toBe("pi-skills");
+      expect(singleRec.backend).toBe("pi");
+      expect(singleRec.boundary).toBe("pi_sdk");
+      expect(singleRec.resources.skills).toBe("user");
+      expect(singleRec.permissions.tiers.readonly.tools).toEqual([...PI_TIER_ACTIVE_TOOLS.readonly]);
+      expect(singleRec.permissions.tiers.edit.tools).toEqual([...PI_TIER_ACTIVE_TOOLS.edit]);
+      expect(singleRec.permissions.tiers.danger.tools).toEqual([...PI_TIER_ACTIVE_TOOLS.danger]);
+      const detailText = (piSkillsUntrusted.content[0] as { text: string }).text;
+      expect(detailText).toContain("Operational receipts: PublicRun structuredContent supported");
+      expect(detailText).toContain("Workflow child schema (agent({ schema })): supported (mechanism: injected_tool).");
+      expect(detailText).toContain("Resources (Pi SDK child): skills=user, extensions=none, promptTemplates=none, themes=none.");
+
+      // 3. Unknown harness returns selection_invalid with data:null
+      const unknownRes = await tool.execute(
+        "cap-unknown",
+        { topic: "capabilities", harness: "not-a-harness" },
+        undefined,
+        undefined,
+        fakeCtx(agentDir),
+      );
+      expect(unknownRes.isError).toBe(true);
+      expect(unknownRes.structuredContent).toMatchObject({
+        contractVersion: 1,
+        tool: "external_help",
+        action: "help",
+        ok: false,
+        data: null,
+        error: {
+          code: "selection_invalid",
+          message: expect.stringContaining(
+            'Unknown harness "not-a-harness". Configured harnesses: agy, claude, codex, grok, muse, opencode, pi-minimal, pi-skills.',
+          ),
+        },
+      });
+      expect(Value.Check(externalHelpOutputSchema, unknownRes.structuredContent)).toBe(true);
+    });
+
+    expect(spawnSpy).not.toHaveBeenCalled();
+    expect(execSpy).not.toHaveBeenCalled();
+    expect(execFileSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(writeFileSyncSpy).not.toHaveBeenCalled();
+    expect(writeFileAsyncSpy).not.toHaveBeenCalled();
+    expect(saveSettingsSpy).not.toHaveBeenCalled();
+
+    // 4. Malformed settings.json: reports configuration.state="invalid" with diagnostics on built-ins, never guesses pi-* names
+    writeFileSyncSpy.mockRestore();
+    writeFileSync(settingsPath, "{ malformed json");
+    await withAgentDir(agentDir, async () => {
+      const tool = makeTool(() => "claude", true);
+      const blockedIndex = await tool.execute("cap-blocked", { topic: "capabilities" }, undefined, undefined, fakeCtx(agentDir));
+      expect(blockedIndex.isError).toBe(false);
+      expect(Value.Check(externalHelpOutputSchema, blockedIndex.structuredContent)).toBe(true);
+      const records = (blockedIndex.structuredContent as any).data.harnesses;
+      expect(records.map((r: any) => r.harness)).toEqual(["agy", "claude", "codex", "grok", "muse", "opencode"]);
+      for (const rec of records) {
+        expect(rec.configuration.state).toBe("invalid");
+        expect(rec.configuration.enabled).toBe(false);
+        expect(rec.configuration.diagnostics).toEqual(["Could not read settings: not valid JSON"]);
+        expect(rec.readiness).toBe("not_probed");
+      }
+      expect((blockedIndex.content[0] as { text: string }).text).toContain("Configuration diagnostics: Could not read settings: not valid JSON");
+
+      // Registered pi names are not guessed when blocked
+      const blockedPi = await tool.execute(
+        "cap-blocked-pi",
+        { topic: "capabilities", harness: "pi-skills" },
+        undefined,
+        undefined,
+        fakeCtx(agentDir),
+      );
+      expect(blockedPi.isError).toBe(true);
+      expect(blockedPi.structuredContent).toMatchObject({
+        ok: false,
+        data: null,
+        error: { code: "selection_invalid" },
+      });
+    });
   });
 });

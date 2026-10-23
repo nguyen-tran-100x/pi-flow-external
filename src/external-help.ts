@@ -19,6 +19,12 @@ import {
 } from "./contract/help.ts";
 import { formatExternalRunsActionGuidance } from "./contract/runs.ts";
 import { formatWorkflowHelpersLine } from "./contract/workflow.ts";
+import {
+  buildCapabilityRecords,
+  formatCapabilitiesIndex,
+  formatCapabilityDetail,
+  formatPermissionHelp,
+} from "./core/capabilities.ts";
 import { ExpectedFlowError, type FlowErrorCode } from "./core/errors.ts";
 import { disabledHarnessMessage, loadExternalCatalog } from "./profiles.ts";
 import {
@@ -28,7 +34,7 @@ import {
   formatUsagePlaybook,
 } from "./prompts.ts";
 import { listSavedWorkflows } from "./workflow/registry.ts";
-import { EXTERNAL_HARNESSES, type ExternalHarness } from "./types.ts";
+import { EXTERNAL_HARNESSES } from "./types.ts";
 
 export { externalHelpParameters, type ExternalHelpParams } from "./contract/help.ts";
 
@@ -47,37 +53,6 @@ function isProjectTrusted(ctx: ExtensionContext): boolean {
   } catch {
     return false;
   }
-}
-
-const PERMISSION_HELP_BY_BACKEND: Record<ExternalHarness | "pi", string> = {
-  agy: "agy: autonomous only. Every accepted run uses --dangerously-skip-permissions and is unsandboxed. readonly and edit are rejected instead of being broadened to that mode.",
-  claude: "claude: readonly uses --permission-mode plan, edit uses --permission-mode acceptEdits, and danger uses --dangerously-skip-permissions (--permission-mode auto under effective UID 0). Headless readonly/edit deny Bash. The requested tier is used as-is; role names do not raise it.",
-  codex: "codex: readonly, edit, and danger map to read-only, workspace-write, and danger-full-access sandboxes. This governs model-generated shell commands, not MCP/plugins/hooks.",
-  grok: "grok: readonly uses --sandbox read-only, edit uses --sandbox workspace, and danger uses --sandbox off, always alongside --permission-mode bypassPermissions. Enforced by a kernel sandbox, but network blocking is Linux-only; edit limits writes to the workspace.",
-  muse: "muse: readonly uses --disable-approval --disable-write --disable-shell (approval, non-shell writes, and shell execution all disabled), edit uses --disable-approval alone (the sandbox stays enabled by default; writes and shell remain available within it), and danger uses --yolo, which disables approval and the sandbox and additionally trusts this workspace (loads its skills/rules) for this run — a broader grant than an unsandboxed run alone. Native provider retries (up to 10 attempts) are disclosed via activity narration, not performed by this extension.",
-  opencode: "opencode (OpenCode 2): every run is `opencode run --standalone`, a private server this run owns, never the shared background service. readonly and edit run under a per-run agent injected through OPENCODE_CONFIG_CONTENT and selected with --agent on every run, resumes included, whose permission rules deny every tool except read/grep/glob (readonly) or those plus edit/write/patch (edit); shell, subagent, web, MCP, and plugin tools are hidden, and edits outside the workspace are denied. Resuming a session with its own permission rules at readonly/edit, or a restricted session at danger, is refused. These are OpenCode application rules, not an OS sandbox, and project or user plugins and MCP servers still load and run their code. danger uses --auto, which approves every permission ask except explicit denies. OpenCode retries transient provider errors itself (up to 10 retries); this extension does not retry.",
-  pi: "pi-* (named Pi harness configs): run in-process, not as a CLI. Tiers gate a curated built-in tool list (read/bash/edit/write/grep/find/ls). That list is not an OS sandbox; danger-tier bash has host access. Each registration selects preset minimal (the default when the field is absent; skills stay unloaded) or skills (installed skills load; project skills load only when the project is trusted). Extensions, prompt templates, and themes stay unloaded. Retry is disabled per child regardless of Pi's own settings.",
-};
-
-/** Resolve a requested, already-validated harness name to its permission-semantics backend. */
-function permissionHelpBackend(harness: string, configuredPiHarnesses: ReadonlySet<string>): ExternalHarness | "pi" {
-  if ((EXTERNAL_HARNESSES as readonly string[]).includes(harness)) return harness as ExternalHarness;
-  // Callers only reach here after validateHarnessFilter, so any name that is
-  // not one of the external harnesses is guaranteed to be a registered
-  // pi-* harness at this point — never an unrecognized string silently
-  // treated as "pi".
-  return "pi";
-}
-
-function permissionHelp(harness: string | undefined, configuredPiHarnesses: ReadonlySet<string>): string {
-  const backends: (ExternalHarness | "pi")[] = harness
-    ? [permissionHelpBackend(harness, configuredPiHarnesses)]
-    : [...EXTERNAL_HARNESSES, ...(configuredPiHarnesses.size ? (["pi"] as const) : [])];
-  return [
-    "External CLIs and pi-* harnesses run with host access; use them only in trusted repositories. Permission is the call's explicit tier, otherwise the global defaultPermission (danger unless changed). A role describes intent and does not change that tier. Antigravity rejects readonly and edit.",
-    ...backends.map((name) => PERMISSION_HELP_BY_BACKEND[name]),
-    "Failed or aborted runs are not silently retried. Only agy may retry once for an infrastructure-classified auth, eligibility, or network failure, and the receipt discloses it.",
-  ].join("\n\n");
 }
 
 /**
@@ -151,7 +126,7 @@ export function createExternalHelpTool(
   return defineTool({
     name: EXTERNAL_HELP_TOOL,
     label: "External Help",
-    description: "Read-only help on demand: usage playbook, role details, permission behavior, workflow usage (including background runs, external_runs supervision syntax, and replay) or saved-workflow discovery, and public tool contracts.",
+    description: "Read-only help on demand: usage playbook, role details, permission behavior, workflow usage (including background runs, external_runs supervision syntax, and replay) or saved-workflow discovery, public tool contracts, and per-harness capabilities.",
     promptSnippet: EXTERNAL_HELP_PROMPT_SNIPPET,
     parameters: externalHelpParameters,
     outputSchema: externalHelpOutputSchema,
@@ -183,6 +158,20 @@ export function createExternalHelpTool(
           };
         }
 
+        if (params.topic === "capabilities") {
+          const harnesses = buildCapabilityRecords({
+            agentDir: getAgentDir(),
+            harness,
+            projectTrusted: isProjectTrusted(ctx),
+          });
+          const text = harness ? formatCapabilityDetail(harnesses[0]!) : formatCapabilitiesIndex(harnesses);
+          return {
+            content: [{ type: "text" as const, text }],
+            details: { topic: "capabilities" as const, ...(harness ? { harness } : {}) },
+            data: { topic: "capabilities" as const, ...(harness ? { harness } : {}), harnesses },
+          };
+        }
+
         let text: string;
         const catalog = loadExternalCatalog(getAgentDir());
         const harnessConfigs = catalog.harnessConfigs;
@@ -199,7 +188,7 @@ export function createExternalHelpTool(
             : harness && catalog.disabledHarnesses.has(harness) ? disabledHarnessMessage(harness)
             : formatExternalRoleHelp(catalog.profiles, options.getDefaultHarness(ctx), harness);
         } else if (params.topic === "permissions") {
-          text = permissionHelp(harness, configuredPiHarnesses);
+          text = formatPermissionHelp(harness, configuredPiHarnesses);
         } else {
           const wfText = workflowHelp(options.workflowEnabled, listSavedWorkflows({
             agentDir: getAgentDir(),
