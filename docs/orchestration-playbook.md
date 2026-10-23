@@ -21,7 +21,7 @@ If skill discovery is unavailable in a custom Pi setup, read [the skill](../skil
 | Delegate | One bounded question | external_delegate; do not pay for a workflow |
 | Parallel sweep | Audit independent routes, sources, topics | parallel() with scoped children; retain failures |
 | Pipeline | Draft -> verification -> output | Sequential await or pipeline() stages |
-| Branch and converge | Compare independent alternatives | parallel branches, bounded evidence, final synthesis |
+| Branch and converge | Compare independent alternatives | Parallel branches, bounded evidence, final synthesis; optional scope discovery first |
 | Adversarial review | Challenge a plan or set of claims | Independent reviewer checks sources, not just agreement |
 | Bounded repair | Fix code and run explicit checks | One editor, read-only QA, capped retries if authorized |
 

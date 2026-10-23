@@ -10,7 +10,8 @@ export const meta = {
 
 // args: { task:"...", scopes:["...","..."], harness:"codex",
 //         synthesisHarness:"claude", maxEvidenceChars:6000 }
-// Select scopes in the parent before launch. The branch agents get no sibling context.
+// Select scopes in the parent before launch (optionally via a prior discovery call).
+// The branch agents get no sibling context. A full discovery stage is not forced if scopes are already known.
 const input = args || {};
 if (typeof input.task !== "string" || !input.task.trim()) throw new Error("args.task is required");
 if (!Array.isArray(input.scopes) || input.scopes.length < 2 || input.scopes.length > 8 ||
@@ -41,7 +42,7 @@ const packets = branches.filter((item) => item.ok).map((item) => {
 });
 const missing = branches.filter((item) => !item.ok).map((item) => ({ scope: item.scope, outcome: item.outcome }));
 if (packets.length === 0) {
-  return { task: input.task, complete: false, branches, synthesis: null, missing };
+  return { task: input.task, coverageComplete: false, acceptedByParent: false, branches, synthesis: null, missing };
 }
 const synthesis = await agent(
   "Combine findings for task: " + input.task +
@@ -51,5 +52,7 @@ const synthesis = await agent(
   JSON.stringify({ packets, missing }),
   { role: "reviewer", harness: synthesisHarness, permission: "readonly", context: { mode: "none" }, description: "Converge evidence" }
 );
-return { task: input.task, complete: missing.length === 0 && packets.every((p) => p.omittedChars === 0),
-  branches, synthesis, missing, truncatedScopes: packets.filter((p) => p.omittedChars > 0).map((p) => p.scope) };
+// Scope coverage only: successful branch delivery is NOT proof of factual correctness.
+return { task: input.task, coverageComplete: missing.length === 0 && packets.every((p) => p.omittedChars === 0),
+  acceptedByParent: false, branches, synthesis, missing,
+  truncatedScopes: packets.filter((p) => p.omittedChars > 0).map((p) => p.scope) };

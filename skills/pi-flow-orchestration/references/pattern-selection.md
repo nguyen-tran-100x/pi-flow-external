@@ -7,7 +7,7 @@ Pick a pattern from the shape of the work. Start with one agent unless an additi
 | Delegate | One bounded task, no benefit from split | Multi-scope tasks would swamp one context | One checked deliverable |
 | Parallel sweep | Independent scopes can be inspected at once | Branches need each other's findings; edits overlap | Every scope accounted for, failed scopes visible |
 | Pipeline | An artifact or decision must pass several stages | Stages don't depend on each other | Each stage checked before next step |
-| Branch and converge | Scope is broad and can be divided into distinct findings | No clear partition or final synthesis requirement | All branches accounted for, disagreements surfaced |
+| Branch and converge | Separate scopes need a single synthesis (discover the split first only if unknown) | No clear partition or final synthesis requirement | All branches accounted for, disagreements surfaced |
 | Adversarial review | Need to challenge a draft/claim/decision | Low-impact routine work | Critique independently checks claims, cites flaws and open questions |
 | Bounded repair | User authorized an edit/test/fix cycle | No edit approval, no reliable test signal, unknown write boundaries | Tests pass within explicit attempts; otherwise report failure |
 

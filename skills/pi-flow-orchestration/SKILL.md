@@ -25,7 +25,7 @@ You are the **parent**. You choose the work split, authority, evidence, stop rul
 | One bounded task, one output | external_delegate (no workflow) |
 | Independent files, topics, or viewpoints | Parallel sweep |
 | A depends on B's result | Pipeline or sequential awaits |
-| Explore first, then divide unknown work, then combine | Branch and converge |
+| Several distinct scopes need one combined answer | Branch and converge (discover scopes first only if needed) |
 | High-stakes claims or important decisions | Adversarial review |
 | Authorized edits followed by tests and limited fixes | Bounded repair |
 | Several of the above | Compose them, but only where the task justifies it |
@@ -53,6 +53,6 @@ Read [runtime-rules.md](references/runtime-rules.md) before writing custom scrip
 
 ## Learn whether the plan helped
 
-Compare a baseline parent without this skill against one using it on the same task, runtime, and model. Score task success, verified coverage, unsafe edits, unnecessary agents, failed handoffs, total cost, and elapsed time. **Never score the number of agents as success.** See [evaluation guide](../../docs/maintainer/orchestration-evaluation.md) for offline tests and optional real-model trials. That guide is in the repository, not necessarily in the published package.
+Compare a baseline parent without this skill against one using it on the same task, runtime, and model. Score task success, verified coverage, unsafe edits, unnecessary agents, failed handoffs, total cost, and elapsed time. **Never score the number of agents as success.** The repository has an additional guide at docs/maintainer/orchestration-evaluation.md for offline tests and optional real-model trials; it is not included in the published package.
 
 For exact tool syntax call external_help({topic:"workflow"}) or external_help({topic:"contracts",tool:"external_workflow"}). The on-demand contract is authoritative if an example drifts.

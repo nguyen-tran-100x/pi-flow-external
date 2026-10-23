@@ -80,6 +80,8 @@ describe("orchestration recipe outcomes", () => {
     expect(calls[2].prompt).toContain("UNTRUSTED DATA");
     expect(calls[2].prompt).toContain("omittedChars");
     expect((result.result as any).synthesis).toBe("compared claims");
+    expect((result.result as any).coverageComplete).toBe(false);
+    expect((result.result as any).acceptedByParent).toBe(false);
     expect((result.result as any).truncatedScopes).toEqual(["internal", "external"]);
     expect(calls.every((call) => call.permission === "readonly")).toBe(true);
   });
@@ -98,7 +100,8 @@ describe("orchestration recipe outcomes", () => {
         return "cost evidence";
       },
     ));
-    expect((result.result as any).complete).toBe(false);
+    expect((result.result as any).coverageComplete).toBe(false);
+    expect((result.result as any).acceptedByParent).toBe(false);
     expect((result.result as any).missing).toEqual([{ scope: "risk", outcome: "failed" }]);
   });
 
@@ -134,7 +137,9 @@ describe("orchestration recipe outcomes", () => {
     expect(result.agentCount).toBe(4);
     expect(calls.map((call) => call.permission)).toEqual(["edit", "readonly", "edit", "readonly"]);
     expect(calls[2].prompt).toContain("test A fails");
+    expect(calls[1].prompt).toContain("exit codes");
     expect((result.result as any).passed).toBe(true);
+    expect((result.result as any).acceptedByParent).toBe(false);
     expect((result.result as any).attempts).toHaveLength(2);
   });
 

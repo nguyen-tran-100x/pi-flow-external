@@ -32,9 +32,10 @@ for (let attempt = 1; attempt <= input.maxAttempts; attempt++) {
   );
   phase("Verify");
   const check = await agent(
-    "Independently run or inspect the specified checks. Do not edit anything.\nChecks: " +
+    "Run the specified checks without editing files. Record actual commands, exit codes, and test evidence. " +
+    "If you cannot run the checks, report passed:false and explain why.\nChecks: " +
     input.checks + "\nValidate changes against task: " + input.task +
-    "\nReturn structured passed:true only if checks actually passed; include check evidence.",
+    "\nReturn structured passed:true only when checks demonstrably passed.",
     {
       role: "qa", harness, permission: "readonly", context: { mode: "none" },
       description: "Verify attempt " + attempt,
@@ -50,7 +51,7 @@ for (let attempt = 1; attempt <= input.maxAttempts; attempt++) {
     typeof check.passed === "boolean" && typeof check.evidence === "string";
   attempts.push({ attempt, change, check, valid });
   if (!valid) return { passed: false, reason: "QA result invalid; stop rather than guess", attempts };
-  if (check.passed) return { passed: true, attempts };
+  if (check.passed) return { passed: true, qaReportedPassed: true, acceptedByParent: false, attempts };
   feedback = check.evidence.slice(0, 6000);
 }
 return { passed: false, reason: "Authorized attempts exhausted", attempts };
