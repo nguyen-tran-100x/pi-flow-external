@@ -44,7 +44,9 @@ Example for parallel-sweep.js:
 
 Before launch the parent should explain the split, selected harnesses, permissions, which checks run in parallel, and what evidence will come back. Foreground is the default when the result is needed next.
 
-The example pins Codex because it supports the explicit readonly tier (and edit for the repair recipe); **it does not automatically switch backends**. Set harness to a verified available backend that enforces the required tier. Antigravity supports only danger, so these restricted examples do not work on it.
+The example pins Codex because it supports the explicit readonly tier; **it does not automatically switch backends**. For the read-only recipes, set harness to a verified available backend that enforces the required tier. Antigravity supports only danger, so these restricted examples do not work on it.
+
+**Bounded repair is Codex-only.** It rejects other harnesses before any editor starts. Supporting edit and readonly tiers is not enough: QA must also have shell access and structured output. OpenCode rejects the required schema, while Claude, Muse, and named Pi harnesses cannot shell-run tests at readonly. Before launch, confirm Codex is available and the checks can run in its read-only sandbox; checks that need workspace writes or network access may fail. Do not silently raise permissions to run them.
 
 ## What good behavior looks like
 
