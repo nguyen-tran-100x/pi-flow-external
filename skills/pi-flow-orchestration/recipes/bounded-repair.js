@@ -18,7 +18,11 @@ if (typeof input.checks !== "string" || !input.checks.trim()) throw new Error("a
 if (!Number.isInteger(input.maxAttempts) || input.maxAttempts < 1 || input.maxAttempts > 3) {
   throw new Error("args.maxAttempts must be an authorized number in 1-3");
 }
-const harness = input.harness || "codex"; // Must enforce both edit and readonly.
+// shortcut: Codex-only QA; expand after verifying shell access and structured output at readonly.
+const harness = input.harness === undefined ? "codex" : input.harness;
+if (harness !== "codex") {
+  throw new Error('bounded-repair requires harness "codex" for shell checks and structured QA; no agents started');
+}
 const attempts = [];
 let feedback = "";
 for (let attempt = 1; attempt <= input.maxAttempts; attempt++) {

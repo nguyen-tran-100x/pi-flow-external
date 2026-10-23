@@ -19,7 +19,7 @@ Use the installed version's external_help({topic:"workflow"}) and external_help(
 - Claude readonly and edit have native tool restrictions, not kernel isolation; headless shell is denied at those tiers. Codex supports read-only and workspace-write OS sandboxes. Do not promise the same security guarantee across backends.
 - For inspection-only work, prefer a harness that can enforce readonly. A prompt saying "don't edit" alone is insufficient.
 - Do not execute parallel edits in the same working tree unless the parent has verified disjoint ownership and no shared-file changes. No built-in worktree isolation or merge arbitration exists in Flow.
-- A repair recipe needs the user to authorize edits and the expected fix/test cycle. Do not auto-retry failed children or expand permission without authorization.
+- A repair recipe needs the user to authorize edits and the expected fix/test cycle. The bundled bounded-repair recipe accepts only Codex and rejects other harnesses before starting children: QA requires shell access at readonly plus structured output, not just support for the permission tiers. Confirm the checks can run in Codex's read-only sandbox before editing. Do not auto-retry failed children or expand permission without authorization.
 
 ## Context and handoff
 

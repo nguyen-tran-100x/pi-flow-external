@@ -2,6 +2,12 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.4.1-external.0] - 2026-10-23
+
+### Fixed
+- Bounded-repair now rejects non-Codex harnesses before starting any editor. Supporting edit and readonly permissions alone does not provide the shell access and structured output required by QA.
+- Repair guidance now states the Codex-only limit and requires checks compatible with its read-only sandbox. Regression tests cover rejection before edits and default/explicit Codex execution.
+
 ## [5.4.0-external.0] - 2026-10-23
 
 ### Added

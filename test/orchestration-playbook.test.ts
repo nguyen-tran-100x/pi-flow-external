@@ -121,11 +121,23 @@ describe("orchestration recipe outcomes", () => {
     expect(calls[1].permission).toBe("readonly");
   });
 
-  it("allows an authorized bounded repair only until structured QA reports a pass", async () => {
+  it.each(["opencode", "claude", "muse", "grok", "agy", "pi-test", "", null])(
+    "rejects repair harness %j before starting an editor",
+    async (harness) => {
+      const calls: WorkflowAgentCall[] = [];
+      await expect(runWorkflow(recipe("bounded-repair"), opts(
+        { task: "Fix parser", checks: "Run tests", approved: true, maxAttempts: 2, harness },
+        async (call) => { calls.push(call); return "unexpected edit"; },
+      ))).rejects.toThrow(/requires.*codex/i);
+      expect(calls).toHaveLength(0);
+    },
+  );
+
+  it.each([undefined, "codex"])("allows bounded repair with harness %j only until structured QA reports a pass", async (harness) => {
     const calls: WorkflowAgentCall[] = [];
     let checked = 0;
     const result = await runWorkflow(recipe("bounded-repair"), opts(
-      { task: "Fix a parser", checks: "Run parser tests", approved: true, maxAttempts: 3 },
+      { task: "Fix a parser", checks: "Run parser tests", approved: true, maxAttempts: 3, harness },
       async (call) => {
         calls.push(call);
         if (call.label.startsWith("Repair")) return "patched parser";
@@ -136,6 +148,9 @@ describe("orchestration recipe outcomes", () => {
     ));
     expect(result.agentCount).toBe(4);
     expect(calls.map((call) => call.permission)).toEqual(["edit", "readonly", "edit", "readonly"]);
+    expect(calls.map((call) => call.subagentType)).toEqual([
+      "codex/implementer", "codex/qa", "codex/implementer", "codex/qa",
+    ]);
     expect(calls[2].prompt).toContain("test A fails");
     expect(calls[1].prompt).toContain("exit codes");
     expect((result.result as any).passed).toBe(true);

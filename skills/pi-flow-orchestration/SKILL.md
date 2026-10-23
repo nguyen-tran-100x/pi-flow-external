@@ -34,9 +34,9 @@ Read [pattern-selection.md](references/pattern-selection.md) for failure modes a
 - [parallel-sweep.js](recipes/parallel-sweep.js) — independent scopes, partial failures kept.
 - [branch-and-converge.js](recipes/branch-and-converge.js) — parallel discovery with explicit evidence handoff into a final synthesis.
 - [adversarial-review.js](recipes/adversarial-review.js) — draft and independent critique (not a self-review).
-- [bounded-repair.js](recipes/bounded-repair.js) — authorized edits, structured checks, limited iterations.
+- [bounded-repair.js](recipes/bounded-repair.js) — Codex-only authorized edits, structured checks, limited iterations. Other harnesses are rejected before any child starts.
 
-These are adaptable **examples**, not new runtime functions. Copy a recipe into a trusted saved workflow root or pass its text as the script to external_workflow, and pass JSON inputs through the tool's args. A scriptPath must be inside an allowed workflow root; a package skill directory is not automatically such a root. Recipes assume Codex as a restricted-permission demonstration backend, not an automatic fallback. Set harness inputs to an available backend that enforces the required tier.
+These are adaptable **examples**, not new runtime functions. Copy a recipe into a trusted saved workflow root or pass its text as the script to external_workflow, and pass JSON inputs through the tool's args. A scriptPath must be inside an allowed workflow root; a package skill directory is not automatically such a root. Recipes assume Codex as a restricted-permission demonstration backend, not an automatic fallback. For the read-only recipes, set harness inputs to an available backend that enforces the required tier. Bounded repair requires Codex: QA needs both shell access at readonly and structured output. Before launch, confirm Codex is available and the specified checks can run in its read-only sandbox; checks that need workspace writes or network access may fail.
 
 ## Flow rules that prevent common failures
 
