@@ -2,6 +2,23 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.5.0-external.0] - 2026-10-24
+
+### Added
+- Read-only harness capability discovery through `external_help({ topic: "capabilities", harness? })` (#79, #95). Omit `harness` for a compact summary or select a built-in CLI or registered `pi-*` harness for details about permissions, structured child answers, resume, budgets, cost reporting, retries, context sharing, and Pi resources.
+- Capability records distinguish configured/enabled state from `readiness: "not_probed"`, and Flow's structured run receipts from support for schema-constrained child answers. Discovery launches no processes, reads no credentials, calls no providers, and writes no files.
+
+### Changed
+- Permission help is generated from shared per-tier facts, including each Pi tier's exact tools. Budget-support disclosures use shared backend metadata. Existing execution permissions and budget enforcement are unchanged.
+
+### Fixed
+- Capability discovery respects valid OpenCode role overrides instead of marking the whole harness invalid when a binding supplies a compatible model or effort setting.
+- Claude permission help uses the current effective UID and correctly reports `--permission-mode auto` under root.
+- Active in-process Pi child rows show `Pi SDK child · host access` instead of `external host access`.
+
+### Release
+- Publishes the capability changes merged in #95 under a fresh version. That merge retained the already-published `5.4.1-external.0`, so its release workflow reused the existing tag and skipped publishing; this release includes those changes without rewriting any published version or tag.
+
 ## [5.4.1-external.0] - 2026-10-23
 
 ### Fixed
