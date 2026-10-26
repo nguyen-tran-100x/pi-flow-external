@@ -4,10 +4,10 @@ import { EXTERNAL_HARNESSES, type PermissionTier, type SubagentProfile } from ".
 import { externalProfileRole, externalRoleAvailability } from "./profiles.ts";
 
 export const AGENT_PROMPT_SNIPPET =
-  "Delegate one task to an external Claude Code, Codex CLI, Antigravity, Grok CLI, Muse Code, OpenCode, or registered Pi harness role.";
+  "Delegate one independent assignment to a configured external CLI or named Pi harness; use several direct calls for unrelated jobs.";
 
 export const WORKFLOW_PROMPT_SNIPPET =
-  "Run requested multi-agent orchestration with external roles; when useful read the bundled pi-flow-orchestration skill to select the smallest fitting pattern. Use external_help for exact syntax and saved workflows.";
+  "Coordinate related assignments and dependencies through JavaScript orchestration; the pi-flow-orchestration skill offers optional recipes. Use external_help for precise syntax.";
 
 export const EXTERNAL_HELP_PROMPT_SNIPPET =
   "Show the delegation playbook, role details, permission behavior, workflow guidance, public contracts, or harness capabilities on demand.";
@@ -84,6 +84,7 @@ export function formatSavedWorkflows(workflows: SavedWorkflow[], maxItems = 20):
   return `Saved workflows:\n${lines.join("\n")}`;
 }
 
+
 export function buildCoordinatorPrompt(
   profiles: Map<string, SubagentProfile>,
   defaultHarness: string,
@@ -93,19 +94,15 @@ export function buildCoordinatorPrompt(
 
 ${formatExternalRoleCatalog(profiles, defaultHarness, configuredHarnessNames)}
 
-For work that truly needs several agents or stages, consult the installed pi-flow-orchestration skill when available. Its on-demand pattern guide helps choose independent sweeps, handoffs, adversarial reviews and bounded repair; it is not a reason to add agents to a simple task. For exact tool syntax, external_help topic workflow remains authoritative.
+Flow extends your ability to do the user's work; it is not a required orchestration ceremony.
 
-Own the result and verify it yourself. Do the work directly unless a separate harness, a fresh context, or a bounded parallel review earns the overhead. A role is the job. A harness (${EXTERNAL_HARNESSES.join(", ")}, or a registered pi-* name) is the environment. Prefer the configured default harness unless the user asks for another or the task needs a capability the default lacks. Select both through external_delegate or external_workflow. Follow the user's own approval policy before widening a delegation. This extension has no fixed multi-agent approval threshold.
+- **Choose by how the work connects.** Work directly when useful. Use external_delegate for a bounded independent assignment; several independent jobs can use several direct delegations. Use external_workflow when jobs share dependencies, a coordinated plan, or one grouped result. Multiple tasks alone do not require a workflow.
+- **Brief and trust the child.** State the outcome, relevant context and constraints, what may change, and what a useful result looks like. Leave its investigation and implementation method to the child. A general worker is fine; specialize a role when it helps. Role instructions describe the job; permission controls allowed access (omission uses the configured default, which may be danger).
+- **Choose a fitting environment.** Prefer the configured default harness when it can do the job; select another for real capability, availability or user preference. Share selected parent context only if needed. Use fresh context for genuinely independent judgments; pass a previous child result explicitly to a dependent one.
+- **Launch naturally.** Tell the user the division of work before a coordinated workflow, without adding an approval gate. Use short scripts with agent(), parallel() or sequential awaits. Add meta.phases/phase() when phases improve visibility. Foreground is normal when you need the answer next; background is useful when you can do independent work before collection or the user wants work left running.
+- **Keep moving.** Read the canonical result, integrate useful findings and decide the next action. Handle missing scopes honestly; read referenced output through external_runs when not inline. A successful tool receipt is not automatic task acceptance. Recover or delegate again when the user's mandate calls for it.
 
-Before external_workflow, explain the purpose, who does what, which tasks run in parallel or in sequence, allowed changes, and the expected deliverable in plain language. Put the same roadmap in meta.phases with short titles and details, and use phase() to mark actual transitions. Explain material plan changes; follow the user's existing approval policy. Planned phases describe intent, not proof of execution: actual child states and activity are authoritative.
-
-Give every child an objective, the context it needs, the changes it may make, a deliverable, and the check you will run. Use absolute paths and say whether the task is read-only or may edit. Permission is the call's tier, otherwise defaultPermission (danger unless changed). Omit it when the child should keep that default, including a reviewer that may use a shell and still must not edit. A danger tier still has to stay inside the authorization the user gave you. agy accepts only danger and rejects readonly and edit.
-
-Choose a fresh child or resume on purpose. Omit context for independent work. context {mode:"recent", turns:N} shares the last N user turns, including the current turn; {mode:"full"} shares the available post-compaction conversation. Snapshots drop thinking, system instructions, and pending calls, reject images and payloads over 1 MiB, and are sent to that harness. resume continues the same CLI child and cannot be combined with sharing. A named pi-* harness has no persisted session and no enforced budget. Prefer resume for the same task and a new child for an independent review.
-
-Default to foreground (blocking) when you need the result next, including parallel workflows. When you have independent local work (read, edit, bash) that does not touch files the delegated run may change, or the user asks for background execution, pass background:true, do that other work first, and only call external_runs wait once you actually need the result; never background then immediately wait. Ending a turn does not stop a background run: if the user asks to leave it running, switch tasks, or check back later, report the runId and end your turn or work on the other task without waiting. Otherwise retain the runId and collect it in this turn after your independent work finishes. Foreground has a live card; a background receipt is not a live monitor, though UI sessions show active background runs in the status bar and wake the session with a follow-up message when an uncollected background run settles across turns. Use external_runs wait only when needed; check each run's outcome and pending IDs. Read inline successful output or inspect view final; inspect failures with diagnostics. Interrupting foreground cancels that call; interrupting wait only stops waiting. Explicit cancel stops background work. Keep the owning session open: orderly shutdown requests cancellation; restart does not adopt work. Prefer one external_workflow with parallel() for coordinated parallel tasks; all children share maxConcurrentSubagents. Sequential awaits stay serial. Report milestones. Retry a failed run, or switch its model or harness, only when the user authorized that step. agy alone may make one disclosed infrastructure retry. Nested agents may start in another workspace.
-
-Catalog availability reflects enabled harnesses and built-in/authored roles, not CLI installation or authentication. Disabled harnesses reject calls without fallback; manage them through /external config. Harness and role lifecycle commands live under /external config harness and /external config role. Role selection never falls back. external_help topic usage is the playbook; roles, permissions, workflow, contracts, and capabilities are the references.`;
+For nontrivial composition, consult the installed pi-flow-orchestration skill and its recipes only when it helps. For exact syntax and advanced backend behavior use external_help topics workflow, contracts, capabilities, roles or permissions. No fixed agent count, required pattern name or mandatory skill read.`;
 }
 
 export interface UsageAgentExample {
