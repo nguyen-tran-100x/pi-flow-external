@@ -27,7 +27,7 @@ Load [batch-map-reduce.js](../recipes/batch-map-reduce.js) and pass:
 }
 ```
 
-Defaults are examples, not an optimal setting for every model. The map phase needs a **read-only and structured-output-capable** harness; Codex is the demonstrated default, not an automatic fallback. Check `external_help({topic:"capabilities", harness:"..."})` when selecting another. Unsupported schemas or permissions may fail; the recipe does not widen access or retry.
+Defaults are examples, not an optimal setting for every model. The map phase needs a **read-only and structured-output-capable** harness; Codex is the example default, not an automatic fallback or a claim of live qualification. Check `external_help({topic:"capabilities", harness:"..."})` when selecting another. Unsupported schemas or permissions may fail; the recipe does not widen access or retry.
 
 The script packs by supplied size, with a per-batch item cap, and maintains a small local worker pool. That pool sits below Flow's shared concurrency limit. It does not launch one permanent worker agent: each batch is a fresh `agent()` assignment. Estimates are character counts, **not token or context-window guarantees**; include room for prompts and outputs. Split an oversized transcript into stable chunk IDs before launch, and regroup chunks when analyzing whole transcripts. The sample limits a run to 500 items; larger corpora use explicit subsets.
 
