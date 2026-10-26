@@ -32,14 +32,14 @@ const receipt = await tools.external_delegate({
   role: "explorer",
   harness: "codex",
   permission: "readonly",
-  prompt: "Inspect checkout retry and idempotency code. Explain relevant paths and possible failure cases; do not edit.",
+  prompt: "Inspect checkout retry and idempotency code in /absolute/path/to/project. Explain relevant paths and possible failure cases; do not edit.",
 });
 if (!receipt.ok) return receipt.error;
 // Check run.state.outcome; use inline result or inspect refs.final if delivered by reference.
 return receipt.data.run;
 ```
 
-Codex is illustrative, not the mandatory backend. Confirm availability when uncertain; the configured default harness may be sufficient for other tasks.
+Codex is illustrative, not the mandatory backend. Replace `/absolute/path/to/project` with the actual absolute workspace path. Confirm availability when uncertain; the configured default harness may be sufficient for other tasks.
 
 ### Example: coordinated investigation
 
@@ -54,10 +54,10 @@ export const meta = {
 };
 phase("Investigate");
 const reports = await parallel([
-  () => agent("Inspect retry handling and return evidence.", {
+  () => agent("Inspect retry handling in /absolute/path/to/project and return evidence.", {
     role: "explorer", harness: "codex", permission: "readonly", context: { mode: "none" },
   }),
-  () => agent("Inspect idempotency handling and return evidence.", {
+  () => agent("Inspect idempotency handling in /absolute/path/to/project and return evidence.", {
     role: "explorer", harness: "codex", permission: "readonly", context: { mode: "none" },
   }),
 ]);

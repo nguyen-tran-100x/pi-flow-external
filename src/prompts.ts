@@ -1,4 +1,3 @@
-import { EXTERNAL_RUNS_EXAMPLES } from "./contract/runs.ts";
 import type { SavedWorkflow } from "./workflow/registry.ts";
 import { EXTERNAL_HARNESSES, type PermissionTier, type SubagentProfile } from "./types.ts";
 import { externalProfileRole, externalRoleAvailability } from "./profiles.ts";
@@ -96,7 +95,7 @@ ${formatExternalRoleCatalog(profiles, defaultHarness, configuredHarnessNames)}
 
 Flow extends your ability to do the user's work; it is not a required orchestration ceremony.
 
-- **Choose by how the work connects.** Work directly when useful. Use external_delegate for a bounded independent assignment; several independent jobs can use several direct delegations. Use external_workflow when jobs share dependencies, a coordinated plan, or one grouped result. Multiple tasks alone do not require a workflow.
+- **Choose by how the work connects.** Work directly when useful. Use external_delegate for a bounded independent assignment; several independent jobs can use several direct delegations. Use external_workflow when jobs share dependencies, a coordinated plan, or one grouped result. Multiple tasks alone do not require a workflow. Parallel editing requires verified non-overlapping ownership or separate workspaces; Flow does not isolate working trees.
 - **Brief and trust the child.** State the outcome, relevant context and constraints, what may change, and what a useful result looks like. Use absolute workspace/file paths because nested agents may start in another workspace. Leave its investigation and implementation method to the child. A general worker is fine; specialize a role when it helps. Role instructions describe the job; permission controls allowed access (omission uses the configured default, which may be danger).
 - **Choose a fitting environment.** Prefer the configured default harness when it can do the job; select another for real capability, availability or user preference. Share selected parent context only if needed. Use fresh context for genuinely independent judgments; pass a previous child result explicitly to a dependent one.
 - **Launch naturally.** Before coordinated work, explain the purpose, assignments, parallel/sequential order, allowed changes and deliverable. Follow the user's existing approval policy; do not invent an extra gate. Use short scripts with agent(), parallel() or sequential awaits. Show the same useful roadmap in meta.phases and mark transitions with phase(); older saved scripts without phases remain valid. Foreground is normal when you need the answer next; background is useful when you can do independent work before collection or the user wants work left running.
@@ -123,45 +122,6 @@ export const USAGE_ONE_AGENT: UsageAgentExample = {
   prompt: "Map /absolute/repo. Read only. Return the important files and how they fit together. Do not edit.",
   role: "explorer",
   harness: "claude",
-};
-
-/** Fresh reviewer on the default tier, so the shell stays available. The prompt forbids edits. */
-export const USAGE_INDEPENDENT_REVIEW: UsageAgentExample = {
-  description: "Independent review",
-  prompt: "Review /absolute/repo read-only. Report defects with file paths. Do not edit.",
-  role: "reviewer",
-  harness: "codex",
-  context: { mode: "none" },
-};
-
-/** Returns after registration. The parent does independent local work first or defers collection across turns before reading through external_runs. */
-export const USAGE_BACKGROUND_AGENT: UsageAgentExample = {
-  description: "Background map",
-  prompt: "Map /absolute/repo read-only and return a short file list. Do not edit.",
-  role: "explorer",
-  harness: "claude",
-  background: true,
-};
-
-/** Single-id inspect with final view, shared with the authoritative external_runs contract examples. */
-export const USAGE_RUNS_FINAL = EXTERNAL_RUNS_EXAMPLES.inspectSingle;
-
-/** Continues a CLI child that stored a session id. Named pi-* harnesses cannot resume. */
-export const USAGE_RESUME_AGENT: UsageAgentExample = {
-  description: "Continue the map",
-  prompt: "Continue the map of /absolute/repo. Add the missing test entry points you already found. Do not expand scope.",
-  role: "explorer",
-  harness: "claude",
-  resume: "run_example",
-};
-
-/** The one call that sets permission. Use it to confine a tier the harness can enforce. */
-export const USAGE_RESTRICTED_AGENT: UsageAgentExample = {
-  description: "Confined lookup",
-  prompt: "List the public entry points in /absolute/repo. Read only. Do not edit.",
-  role: "explorer",
-  harness: "claude",
-  permission: "readonly",
 };
 
 export const USAGE_WORKFLOW_CALLS: { prompt: string; options: { description: string; role: string; harness: string; permission?: PermissionTier } }[] = [

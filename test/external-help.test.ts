@@ -38,12 +38,7 @@ import { createExternalRunsTool } from "../src/external-runs.ts";
 import { RunRegistry } from "../src/core/run-registry.ts";
 import { loadExternalCatalog, resolveExternalProfile } from "../src/profiles.ts";
 import {
-  USAGE_BACKGROUND_AGENT,
-  USAGE_INDEPENDENT_REVIEW,
   USAGE_ONE_AGENT,
-  USAGE_RESTRICTED_AGENT,
-  USAGE_RESUME_AGENT,
-  USAGE_RUNS_FINAL,
   USAGE_WORKFLOW_CALLS,
   usageWorkflowScript,
 } from "../src/prompts.ts";
@@ -217,8 +212,7 @@ function toolCall(name: string, args: import("@earendil-works/pi-ai").JsonObject
 }
 
 describe("external_help usage playbook", () => {
-  const ordinaryAgents = [USAGE_ONE_AGENT, USAGE_INDEPENDENT_REVIEW, USAGE_BACKGROUND_AGENT, USAGE_RESUME_AGENT];
-  const agentExamples = [...ordinaryAgents, USAGE_RESTRICTED_AGENT];
+  const agentExamples = [USAGE_ONE_AGENT];
 
   it("accepts topic usage and rejects an unknown topic", () => {
     const tool = makeTool() as any;
@@ -251,14 +245,15 @@ describe("external_help usage playbook", () => {
 
   it("validates playbook selectors and all external_runs action examples against the executable schemas", async () => {
     const agentTool = { name: "external_delegate", parameters: agentToolParameters } as any;
-    for (const example of ordinaryAgents) {
+    for (const example of agentExamples) {
       const validated = validateToolArguments(agentTool, toolCall("external_delegate", { ...example }));
       expect(validated).toMatchObject({ role: example.role, harness: example.harness });
       expect(validated).not.toHaveProperty("permission");
     }
-    expect(validateToolArguments(agentTool, toolCall("external_delegate", { ...USAGE_RESTRICTED_AGENT }))).toMatchObject({
-      role: USAGE_RESTRICTED_AGENT.role,
-      harness: USAGE_RESTRICTED_AGENT.harness,
+    const confined = { ...USAGE_ONE_AGENT, permission: "readonly" as const };
+    expect(validateToolArguments(agentTool, toolCall("external_delegate", confined))).toMatchObject({
+      role: USAGE_ONE_AGENT.role,
+      harness: USAGE_ONE_AGENT.harness,
       permission: "readonly",
     });
     for (const [label, args] of [
@@ -295,8 +290,6 @@ describe("external_help usage playbook", () => {
     ).toMatchObject({ role: USAGE_ONE_AGENT.role, resume: "" });
 
     const runsTool = createExternalRunsTool({ registry: new RunRegistry(1), runsDirectory: () => "/tmp" }) as any;
-    expect(validateToolArguments(runsTool, toolCall("external_runs", USAGE_RUNS_FINAL))).toEqual(USAGE_RUNS_FINAL);
-
     const schemaPropertyKeys = Object.keys(runsTool.parameters.properties).sort();
     expect([...EXTERNAL_RUNS_PARAMETER_KEYS].sort()).toEqual(schemaPropertyKeys);
 

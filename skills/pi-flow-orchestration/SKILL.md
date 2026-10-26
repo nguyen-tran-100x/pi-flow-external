@@ -18,6 +18,8 @@ You are already working on a user's task. Flow should extend your capacity, not 
 
 Multiple tasks do **not** automatically require a workflow. You do not need a planner agent, pattern label or skill invocation before ordinary delegation.
 
+**When delegating edits:** Parallel editing requires verified non-overlapping ownership or separate workspaces; Flow does not isolate working trees.
+
 ## The parent-agent journey
 
 1. **See the work.** Understand what the user wants and what help actually adds value. Split by meaningful outcomes, not arbitrary agent count.
