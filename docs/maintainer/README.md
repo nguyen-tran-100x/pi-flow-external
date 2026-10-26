@@ -6,6 +6,13 @@ These files are internal development documentation and are excluded from the pub
 
 ---
 
+## Product direction
+
+- **[Agent-first Development Principles](agent-first-development.md):** The parent-agent journey, guidance hierarchy, delegation ergonomics and evaluation standards. This is the default design lens for Flow changes.
+- **[Delegation North Star](rfcs/delegation-experience-north-star.md):** The complementary human supervision and inspection experience.
+
+---
+
 ## Runbooks & Architecture
 
 - **[Architecture Spec](architecture.md):** Implementation map, settings v5 resolution order, and boundary invariants.
@@ -17,5 +24,4 @@ These files are internal development documentation and are excluded from the pub
 
 ## Active RFCs & Design Guidelines
 
-- **[Delegation North Star](rfcs/delegation-experience-north-star.md):** Product vision for supervisor UX and assignment tracking.
 - **[Visual Guidelines](rfcs/delegation-visual-guidelines.md):** Terminal card palette, semantic coloring, and contrast rules.

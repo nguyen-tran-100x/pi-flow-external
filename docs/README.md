@@ -37,6 +37,7 @@ Internal system architecture, testing procedures, and release processes:
 
 | Document | Status | Purpose |
 |---|---|---|
+| **[Agent-first Development Principles](maintainer/agent-first-development.md)** | `Design Direction` | Parent-agent delegation journey, ergonomics, discoverability, and evaluation principles. |
 | **[Architecture Spec](https://github.com/tranhoangnguyen03/pi-flow-external/blob/main/docs/maintainer/architecture.md)** | `Current Spec` | Component mapping, settings resolution order, and execution boundary invariants. |
 | **[Field Testing](https://github.com/tranhoangnguyen03/pi-flow-external/blob/main/docs/maintainer/field-testing.md)** | `Maintainer Runbook` | Offline check suite, fake-backend smokes, and real-provider E2E test execution lanes. |
 | **[Releasing](https://github.com/tranhoangnguyen03/pi-flow-external/blob/main/docs/maintainer/releasing.md)** | `Maintainer Runbook` | Automated release pipeline, versioning labels, OIDC trusted publishing, and npm checks. |
