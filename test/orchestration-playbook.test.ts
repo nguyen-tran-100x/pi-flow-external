@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ConcurrencyLimiter } from "../src/core/concurrency.ts";
+import { buildCoordinatorPrompt, formatUsagePlaybook } from "../src/prompts.ts";
 import {
   ChildRunError,
   parseWorkflowScript,
@@ -42,6 +43,45 @@ describe("installed orchestration skill", () => {
       expect(parsed.meta.phases?.length).toBeGreaterThan(0);
       expect(parsed.body).toContain("agent(");
     }
+  });
+});
+
+
+describe("agent-first journey guidance", () => {
+  it("orients the parent without requiring a taxonomy or full technical manual", () => {
+    const prompt = buildCoordinatorPrompt(new Map(), "codex", ["codex"]);
+    expect(prompt).toContain("external_delegate");
+    expect(prompt).toContain("external_workflow");
+    expect(prompt).toContain("several direct delegations");
+    expect(prompt).toContain("Multiple tasks alone do not require a workflow");
+    expect(prompt).toContain("Leave its investigation and implementation method to the child");
+    expect(prompt).toContain("external_runs");
+    expect(prompt).toContain("external_help");
+    expect(prompt.length).toBeLessThan(3000);
+  });
+
+  it("makes the on-demand skill and guides explain the same operator journey", () => {
+    const skillText = readFileSync(root + skill + "SKILL.md", "utf8");
+    const selector = readFileSync(root + skill + "references/pattern-selection.md", "utf8");
+    const guide = readFileSync(root + "docs/orchestration-playbook.md", "utf8");
+    for (const guidance of [skillText, selector, guide]) {
+      expect(guidance).toContain("external_delegate");
+      expect(guidance).toContain("external_workflow");
+      expect(guidance).toContain("parallel-sweep");
+    }
+    expect(skillText).toContain("Multiple tasks do **not** automatically require a workflow");
+    expect(selector).toContain("Several unrelated, self-contained results");
+    expect(guide).toContain("not** a saved workflow registered by");
+    expect(guide).toContain("A bundled recipe is a file");
+  });
+
+  it("keeps usage help brief and points to detailed help only as needed", () => {
+    const usage = formatUsagePlaybook();
+    expect(usage).toContain("external_delegate");
+    expect(usage).toContain("external_workflow");
+    expect(usage).toContain("external_runs");
+    expect(usage).toContain("topic: \"contracts\"");
+    expect(usage.length).toBeLessThan(4500);
   });
 });
 

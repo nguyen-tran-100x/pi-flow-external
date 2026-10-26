@@ -235,9 +235,10 @@ describe("external_help usage playbook", () => {
       expect(result.details).toEqual({ topic: "usage", harness: "not-a-real-harness" });
       expect(text).toContain(usageWorkflowScript());
       expect(text).toContain(JSON.stringify(USAGE_ONE_AGENT, null, 2));
-      expect(text).toContain(JSON.stringify(USAGE_RESTRICTED_AGENT, null, 2));
-      expect(text).toContain(JSON.stringify(USAGE_RUNS_FINAL, null, 2));
-      expect(text).toContain(formatExternalRunsActionGuidance());
+      expect(text).toContain("several direct calls");
+      expect(text).toContain('topic: "workflow"');
+      expect(text).toContain("Bundled skill recipes are examples");
+      expect(text.length).toBeLessThan(4500);
 
       const blank = await tool.execute("call-usage-blank", { topic: "usage", harness: "  ", tool: "  " }, undefined, undefined, fakeCtx(agentDir));
       expect(blank.details).toEqual({ topic: "usage" });
@@ -328,7 +329,8 @@ describe("external_help usage playbook", () => {
     const agentDir = tempAgentDir();
     await withAgentDir(agentDir, async () => {
       const usageRes = await helpTool.execute("call-usage", { topic: "usage" }, undefined, undefined, fakeCtx(agentDir));
-      expect((usageRes.content[0] as { text: string }).text).toContain(guidance);
+      expect((usageRes.content[0] as { text: string }).text).toContain("delegate work, use results");
+      expect((usageRes.content[0] as { text: string }).text).not.toContain(guidance);
       const workflowRes = await helpTool.execute("call-wf", { topic: "workflow" }, undefined, undefined, fakeCtx(agentDir));
       expect((workflowRes.content[0] as { text: string }).text).toContain(guidance);
     });
