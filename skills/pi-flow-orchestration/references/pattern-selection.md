@@ -1,32 +1,48 @@
-# Pattern selection: optimize outcomes, not fan-out
+# Work shapes and composition choices
 
-Pick a pattern from the shape of the work. Start with one agent unless an additional independent result, specialty, or check has a clear payoff.
+**Start with the task, not a named pattern.** These examples help you recognize useful compositions. They are not a menu the parent must select from before delegating.
 
-| Pattern | Use when | Avoid when | Acceptance check |
-| --- | --- | --- | --- |
-| Delegate | One bounded task, no benefit from split | Multi-scope tasks would swamp one context | One checked deliverable |
-| Parallel sweep | Independent scopes can be inspected at once | Branches need each other's findings; edits overlap | Every scope accounted for, failed scopes visible |
-| Pipeline | An artifact or decision must pass several stages | Stages don't depend on each other | Each stage checked before next step |
-| Branch and converge | Separate scopes need a single synthesis (discover the split first only if unknown) | No clear partition or final synthesis requirement | All branches accounted for, disagreements surfaced |
-| Adversarial review | Need to challenge a draft/claim/decision | Low-impact routine work | Critique independently checks claims, cites flaws and open questions |
-| Bounded repair | User authorized an edit/test/fix cycle | No edit approval, no reliable test signal, unknown write boundaries | Tests pass within explicit attempts; otherwise report failure |
+## The primary choice
 
-## Default decisions
+| Need | Natural action | Why |
+| --- | --- | --- |
+| Work is best done by the parent | Work directly | No delegation overhead |
+| One useful independent result | `external_delegate` | Minimal handoff |
+| Several unrelated, self-contained results | Several `external_delegate` calls | Independence does not need a coordinator |
+| Tasks depend on earlier findings, require common progress, or produce one coordinated result | `external_workflow` | JavaScript can express dependencies and grouped evidence |
 
-- **Decomposition:** Split by clear scopes or methods. Do not assign identical vague tasks to many agents and call it coverage.
-- **Fan-out:** Start with 2–4 independent branches for normal work. Grow only for real partitions; note cost and concurrency caps.
-- **Harness:** Choose capability, permission support, availability, and price. Different harnesses do not automatically mean better independent evidence.
-- **Context:** Fresh context is better for independent critiques; selected, bounded evidence is better for dependent steps. Conversation sharing is not a magic shared blackboard.
-- **Failure:** Decide up front whether a failed child means stop, reduced coverage, or a *user-authorized* recovery. Do not hide it in a synthesized answer.
-- **Edit safety:** Make the first fan-out read-only where possible. A single implementer can edit after the work split; independent QA can then validate it. With concurrent edits, define disjoint files and confirm they do not conflict. Flow offers no built-in worktrees.
-- **Stop rule:** A workflow should stop after meeting the check, reaching a limit, or encountering an unsafe condition. Avoid open-ended self-improvement loops.
-- **No ceremony:** Do not launch a planner, reviewer, and integrator for a simple lookup. Do not require the user to approve a fixed team size.
+If you are unsure, articulate the tasks and ask **which results need to flow into which other tasks**. That usually settles whether orchestration earns its cost. A direct call can remain valuable even as a larger workflow develops.
 
-## How to compose patterns
+## Compose when coordination helps
 
-- Research: partition sources/topics -> parallel evidence collection -> converge -> independent claim check.
-- Code audit: independent file groups -> merge findings -> verify only high-risk items in original sources.
-- Change request: one implementer -> independent read-only QA -> bounded fix cycle only if user authorized repeated attempts.
-- Decision support: independent assumptions/alternatives -> adversarial critique -> parent-owned recommendation.
+| Situation | Technique or bundled example | Useful check |
+| --- | --- | --- |
+| Several independent areas need inspection together | `parallel()` or [parallel sweep](../recipes/parallel-sweep.js) | Findings and gaps remain visible per area |
+| One task depends on another | Sequential `await` (or `pipeline()` for repeated per-item stages) | The next child receives selected actual evidence |
+| Separate investigations need one integrated answer | [branch and converge](../recipes/branch-and-converge.js) | Claims, disagreements and missing evidence survive synthesis |
+| A produced claim needs independent challenge | [adversarial review](../recipes/adversarial-review.js) | Critic works from evidence, not just the author's reasoning |
+| An **existing** design needs several fresh opinions | Adapt parallel sweep: shared target, distinct perspectives | Reviews are separate; parent judges them, not a vote |
+| A user-authorized change needs bounded tests and fixes | [bounded repair](../recipes/bounded-repair.js) | Stop after the stated attempt limit; keep evidence |
 
-At every stage state what the next child **needs**, not everything the prior child said. A good plan minimizes duplicate work and irrelevant context.
+You may combine or invent patterns. Do not add a synthesis agent when the parent can read and compare the results itself. Two useful perspectives are often better than a large undirected group.
+
+## Briefing and receiving work
+
+A useful child brief normally contains the objective, relevant files or facts, task-specific constraints and the expected output. Grant enough latitude for the child to investigate. Choose `worker` for a broad assignment or a specialized role when its existing instructions fit.
+
+Start a fresh child **without parent conversation history** when independence matters; supply the review target and the necessary facts explicitly (for example, `context: { mode: "none" }`). Pass a compact evidence packet to a later child only when that step depends on another result. Names and paths in another agent's output are not automatically verifiable source evidence.
+
+After execution, use the result and decide: accept, check a material uncertainty, send one follow-up, repair within the user's mandate, or finish. Failed or missing branches are gaps to act on, not an instruction to restart everything.
+
+For uncommon runtime behavior, inspect [runtime rules](runtime-rules.md), [handoffs](handoffs.md) and the exact `external_help` contract rather than loading every reference in advance.
+
+## Friction to avoid
+
+- A mandatory planner/reviewer/synthesizer trio around a straightforward task.
+- A workflow just because the parent has more than one independent assignment.
+- Treating the number of launched agents or objections raised as success.
+- Redundant history transfer when a few task facts would suffice.
+- Fixed role/persona or backend selection when a capable generalist and default environment fit.
+- Repeated review or repair until every critic agrees, without a real decision to make.
+
+The parent remains accountable for the task. The shape of its plan should remain easy to change as evidence arrives.

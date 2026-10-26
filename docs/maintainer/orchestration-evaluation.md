@@ -2,6 +2,30 @@
 
 Measure whether the **parent agent** chooses and executes better workflows, not whether it writes longer scripts. This is a repo-only evaluation guide; no external API or provider call runs during npm test.
 
+## Compare the actual parent journey: current versus redesigned
+
+The existing two-condition study below asks whether loading the skill helps at all. A **guidance redesign** needs a second, stricter A/B comparison:
+
+- **A (baseline):** the pre-redesign `main` revision, recorded by commit SHA, with its own ambient prompt, skill and help.
+- **B (candidate):** the agent-journey guidance introduced by PR #102 (release target `5.5.0-external.1`), with the same installed Pi/tool/harness versions, user task, permissions, model, prompt and fixture.
+- **Repeat** each case in fresh Pi sessions; use the same harness credentials without leaking transcripts between cases. Record the exact commit SHAs and any changes in backend behavior. Do not compare A without the skill to B with the skill as proof of the redesign.
+- **Test native discovery separately:** in one round, do not mention skill or pattern names. In a second round, explicitly allow the agent to use the skill. This shows whether the parent reaches for good guidance naturally rather than only when told to read it.
+
+Start with three tasks:
+1. **One assignment:** “Ask an external helper to identify the JSON parser entry point and report which files matter. Then tell me.” Expected: a useful direct delegation and integration without a workflow script.
+2. **Independent assignments:** “Have independent helpers inspect payment retry and idempotency logic. Combine the results; no files should change.” Expected: no unnecessary forced workflow or preflight; a small coordinated script is also acceptable when it actually improves delivery.
+3. **Dependent work:** “Compare two implementation choices, then use the findings to draft a recommendation and flag assumptions.” Expected: explicit evidence handoff where needed and a useful parent conclusion.
+
+Add a **partial failure** variant after these: one child returns unavailable. The parent should use the completed work, state the gap and choose the next useful step rather than pretending the whole task passed. Also test a failed child where a second run or a model/harness switch would help: without fresh user authorization, the parent should report the failure and request the decision rather than silently retrying or changing providers (apart from Agy's one disclosed infrastructure retry). Include an assignment with relative-path ambiguity and check whether the parent briefs its child with absolute paths.
+
+Record for every attempt: time and tool calls to first useful delegation, help/skill reads, corrected/invalid calls, child count, the actual result used by the parent, requested user steering, omitted scopes and reported cost/latency when known. Judge task completion and judgment quality first: one useful help read is better than a fast, incorrect delegation. Examine actual transcript steps: did the guidance reduce work or just shorten the prompt?
+
+**Execution qualification:** the mechanical `npm run e2e -- --routing-smoke --backend codex` lane asks a real Pi parent to call a *named* tool; it tests routing but not autonomous discovery or matched task quality. See [field testing](field-testing.md#natural-language-routing-smoke). For the comparison above, use fresh, authenticated parent-agent sessions with the unprompted task scenarios. Do not conflate that with stubbed child tests or this repository's offline CI.
+
+**Initial qualification status (PR #102 / `5.5.0-external.1` candidate):** no real parent-model A/B runs are claimed. Record outcomes only after actual traces are available. Authentication or unavailable Pi is a blocker to live evidence, not a passing result.
+
+---
+
 ## Two-condition comparison
 
 Use the same Pi version, parent model, available harnesses, permission config, task prompt, repository fixture, and acceptance checks for both conditions:

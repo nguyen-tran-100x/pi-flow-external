@@ -2,6 +2,18 @@
 
 All notable changes to pi-flow external are documented here.
 
+## [5.5.0-external.1] - 2026-10-26
+
+### Changed
+- Make the parent-agent journey the center of Flow's delegation guidance: delegate independent assignments directly and reach for `external_workflow` when sequencing or grouped work adds value.
+- Shorten always-loaded coordinator guidance and `external_help({ topic: "usage" })`, keeping detailed harness, contract, and supervision behavior available on demand.
+- Reorganize the installed `pi-flow-orchestration` skill, work-shape selector, and user playbook around concrete assignments and adaptable examples. Independent review starts with a fresh child and explicit necessary evidence; the parent remains responsible for the decision.
+- Clarify that coordinated launches follow existing user approvals and describe assignments, order, allowed changes, and deliverable. Fix an obsolete help-topic cross-reference.
+
+### Compatibility
+- No execution-engine, permission, workflow-helper, or public API changes. Existing four recipe scripts and saved workflows remain compatible.
+- Real parent-agent quality comparison is described in the maintainer evaluation guide but was not performed for this change. TypeScript, automated recipe and contract checks are the CI coverage.
+
 ## [5.5.0-external.0] - 2026-10-24
 
 ### Added

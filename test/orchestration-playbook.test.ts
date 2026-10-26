@@ -1,7 +1,9 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ConcurrencyLimiter } from "../src/core/concurrency.ts";
+import { buildCoordinatorPrompt, formatUsagePlaybook, usageWorkflowScript } from "../src/prompts.ts";
 import {
   ChildRunError,
   parseWorkflowScript,
@@ -41,6 +43,38 @@ describe("installed orchestration skill", () => {
       expect(parsed.meta.name).toBe(name);
       expect(parsed.meta.phases?.length).toBeGreaterThan(0);
       expect(parsed.body).toContain("agent(");
+    }
+  });
+});
+
+
+describe("agent-first help contracts", () => {
+  it("keeps ambient orientation within its deliberate size budget", () => {
+    const prompt = buildCoordinatorPrompt(new Map(), "codex", ["codex"]);
+    expect(prompt.length).toBeLessThan(3200);
+  });
+
+  it("provides runnable workflow examples without forcing a long usage manual", () => {
+    const usage = formatUsagePlaybook();
+    expect(usage).toContain(usageWorkflowScript());
+    expect(parseWorkflowScript(usageWorkflowScript()).meta.apiVersion).toBe(1);
+    expect(usage.length).toBeLessThan(4500);
+  });
+
+  it("links to actual bundled recipe files rather than inventing saved workflow names", () => {
+    const sourceFiles = [
+      root + skill + "SKILL.md",
+      root + skill + "references/pattern-selection.md",
+      root + "docs/orchestration-playbook.md",
+    ];
+    for (const file of sourceFiles) {
+      const markdown = readFileSync(file, "utf8");
+      const referencedRecipes = [...markdown.matchAll(/\]\(([^)]+\.js)\)/g)].map(match => match[1]!);
+      expect(referencedRecipes.length).toBeGreaterThan(0);
+      for (const reference of referencedRecipes) {
+        const resolved = resolve(dirname(file), reference);
+        expect(existsSync(resolved), `${file} references missing ${reference}`).toBe(true);
+      }
     }
   });
 });
