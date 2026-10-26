@@ -240,7 +240,7 @@ describe("complete guide examples", () => {
     expect((result.result as any).missing).toEqual(["B"]);
     expect(calls.every((call) => call.permission === "readonly")).toBe(true);
   });
-  it.each([[], [{ id: "A", question: "A" }, { id: "A", question: "Duplicate" }]])("handles empty or duplicate discovery without extra workers", async (tasks) => {
+  it.each([{ tasks: [] }, { tasks: [{ id: "A", question: "A" }, { id: "A", question: "Duplicate" }] }])("handles empty or duplicate discovery without extra workers", async ({ tasks }) => {
     let calls = 0;
     const run = runWorkflow(guideScript("discover-and-delegate"), options({ task: "Find risks", target: "/work/shop" }, async () => { calls++; return { reason: "Discovery", tasks }; }));
     if (tasks.length) await expect(run).rejects.toThrow();
