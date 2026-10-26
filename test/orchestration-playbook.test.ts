@@ -69,7 +69,7 @@ describe("agent-first help contracts", () => {
     ];
     for (const file of sourceFiles) {
       const markdown = readFileSync(file, "utf8");
-      const referencedRecipes = [...markdown.matchAll(/\\]\\(([^)]+\\.js)\\)/g)].map(match => match[1]!);
+      const referencedRecipes = [...markdown.matchAll(/\]\(([^)]+\.js)\)/g)].map(match => match[1]!);
       expect(referencedRecipes.length).toBeGreaterThan(0);
       for (const reference of referencedRecipes) {
         const resolved = resolve(dirname(file), reference);
