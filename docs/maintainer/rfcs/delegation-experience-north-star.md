@@ -4,6 +4,8 @@
 
 **Tracking:** [Issue #67 — Delegation transparency: workflow visibility and shared prompt/config/context inspection](https://github.com/tranhoangnguyen03/pi-flow-external/issues/67).
 
+This document focuses on the **human supervising delegation**. The companion [agent-first development principles](../agent-first-development.md) describe how the parent agent chooses, launches and uses delegated work with minimal friction. Neither replaces the other's contract.
+
 ## Objective
 
 A user must be able to understand and supervise delegated work without asking the parent model to extract raw diagnostics:

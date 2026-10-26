@@ -1,5 +1,13 @@
 # Agent Notes
 
+## Agent-first product direction
+
+**North star:** an agent sees useful work, hands it to the right helpers, uses their results, and keeps moving.
+
+For changes to the delegation experience, read [Agent-first development principles](docs/maintainer/agent-first-development.md). Develop for a **parent agent completing a user's task**, not a workflow operator completing a checklist. Prefer direct delegation for independent work, JavaScript workflows for coordination that earns its cost, concise ambient guidance, adaptable examples and targeted technical help. Trust the agent's judgment while keeping actual authority, execution and result contracts truthful.
+
+The detailed implementation contract below remains in force; the agent-first direction complements it rather than overriding mechanics, configuration, backends or safety guarantees. For exact behavior consult current source and tests. Verify work with `npm run check`; use [maintainer field testing](docs/maintainer/field-testing.md) for live routing checks.
+
 ## pi-flow external contract
 
 This fork changes the original pi-flow contract: the direct delegation tool `external_delegate` (named `Agent` before issue #85) is not a generic Pi subagent launcher. It delegates only to external Claude Code, Codex CLI, Antigravity, Grok Build CLI, Muse Code, and OpenCode harnesses, plus named Pi harness configurations (below) — in-process, per-model configs registered by the user, not a spawned CLI.
