@@ -30,7 +30,7 @@ You may combine or invent patterns. Do not add a synthesis agent when the parent
 
 A useful child brief normally contains the objective, relevant files or facts, task-specific constraints and the expected output. Grant enough latitude for the child to investigate. Choose `worker` for a broad assignment or a specialized role when its existing instructions fit.
 
-Share fresh parent context when true independence matters; pass an explicit compact evidence packet where a later step depends on another result. Names and paths in another agent's output are not automatically verifiable source evidence.
+Start a fresh child **without parent conversation history** when independence matters; supply the review target and the necessary facts explicitly (for example, `context: { mode: "none" }`). Pass a compact evidence packet to a later child only when that step depends on another result. Names and paths in another agent's output are not automatically verifiable source evidence.
 
 After execution, use the result and decide: accept, check a material uncertainty, send one follow-up, repair within the user's mandate, or finish. Failed or missing branches are gaps to act on, not an instruction to restart everything.
 

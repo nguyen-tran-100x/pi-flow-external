@@ -66,7 +66,7 @@ return { reports };
 
 If one optional investigation may fail without invalidating the others, catch `ChildRunError` within that branch and return a visible failed entry. If later work depends on an earlier answer, use sequential `await` and pass the selected result explicitly.
 
-A short heads-up to the user states the delegated assignments, order and expected result. That is communication, **not** a separate permission gate.
+Before coordinated work, briefly explain the purpose, assignments, parallel/sequential order, allowed changes and deliverable. Follow the user's existing approval policy; do not invent an extra gate. Use `meta.phases` with matching `phase()` calls to show a meaningful roadmap; previously saved workflows without phases remain valid.
 
 ## Recipes are starting points
 

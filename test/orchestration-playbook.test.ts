@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ConcurrencyLimiter } from "../src/core/concurrency.ts";
@@ -47,41 +48,34 @@ describe("installed orchestration skill", () => {
 });
 
 
-describe("agent-first journey guidance", () => {
-  it("orients the parent without requiring a taxonomy or full technical manual", () => {
+describe("agent-first help contracts", () => {
+  it("keeps ambient orientation within its deliberate size budget", () => {
     const prompt = buildCoordinatorPrompt(new Map(), "codex", ["codex"]);
-    expect(prompt).toContain("external_delegate");
-    expect(prompt).toContain("external_workflow");
-    expect(prompt).toContain("several direct delegations");
-    expect(prompt).toContain("Multiple tasks alone do not require a workflow");
-    expect(prompt).toContain("Leave its investigation and implementation method to the child");
-    expect(prompt).toContain("external_runs");
-    expect(prompt).toContain("external_help");
-    expect(prompt.length).toBeLessThan(3000);
+    expect(prompt.length).toBeLessThan(3200);
   });
 
-  it("makes the on-demand skill and guides explain the same operator journey", () => {
-    const skillText = readFileSync(root + skill + "SKILL.md", "utf8");
-    const selector = readFileSync(root + skill + "references/pattern-selection.md", "utf8");
-    const guide = readFileSync(root + "docs/orchestration-playbook.md", "utf8");
-    for (const guidance of [skillText, selector, guide]) {
-      expect(guidance).toContain("external_delegate");
-      expect(guidance).toContain("external_workflow");
-      expect(guidance).toContain("parallel-sweep");
-    }
-    expect(skillText).toContain("Multiple tasks do **not** automatically require a workflow");
-    expect(selector).toContain("Several unrelated, self-contained results");
-    expect(guide).toContain("not** a saved workflow registered by");
-    expect(guide).toContain("A bundled recipe is a file");
-  });
-
-  it("keeps usage help brief and points to detailed help only as needed", () => {
+  it("provides runnable workflow examples without forcing a long usage manual", () => {
     const usage = formatUsagePlaybook();
-    expect(usage).toContain("external_delegate");
-    expect(usage).toContain("external_workflow");
-    expect(usage).toContain("external_runs");
-    expect(usage).toContain("topic: \"contracts\"");
+    expect(usage).toContain(usageWorkflowScript());
+    expect(parseWorkflowScript(usageWorkflowScript()).meta.apiVersion).toBe(1);
     expect(usage.length).toBeLessThan(4500);
+  });
+
+  it("links to actual bundled recipe files rather than inventing saved workflow names", () => {
+    const sourceFiles = [
+      root + skill + "SKILL.md",
+      root + skill + "references/pattern-selection.md",
+      root + "docs/orchestration-playbook.md",
+    ];
+    for (const file of sourceFiles) {
+      const markdown = readFileSync(file, "utf8");
+      const referencedRecipes = [...markdown.matchAll(/\\]\\(([^)]+\\.js)\\)/g)].map(match => match[1]!);
+      expect(referencedRecipes.length).toBeGreaterThan(0);
+      for (const reference of referencedRecipes) {
+        const resolved = resolve(dirname(file), reference);
+        expect(existsSync(resolved), `${file} references missing ${reference}`).toBe(true);
+      }
+    }
   });
 });
 

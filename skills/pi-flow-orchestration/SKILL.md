@@ -22,7 +22,7 @@ Multiple tasks do **not** automatically require a workflow. You do not need a pl
 
 1. **See the work.** Understand what the user wants and what help actually adds value. Split by meaningful outcomes, not arbitrary agent count.
 2. **Brief each helper.** Give the goal, relevant sources/context, boundaries on changes, and a useful result to return. Choose a role and fitting harness; `worker` is a legitimate generalist. Let the child find its own method.
-3. **Launch.** Use a direct delegation for each independent job. For genuinely coordinated work, write a small JavaScript workflow using `agent()`, `parallel()` and sequential `await`; choose `pipeline()` only when per-item stages fit. A clear one-sentence heads-up to the user describes a coordinated plan; no extra approval step is implied.
+3. **Launch.** Use a direct delegation for each independent job. For coordinated work, briefly explain the purpose, assignments, parallel/sequential order, allowed changes and deliverable. Follow the user's existing approval policy; do not invent an extra gate. Write a small JavaScript workflow using `agent()`, `parallel()` and sequential `await`; use `pipeline()` only for per-item stages. Show useful planned phases in `meta.phases` and call `phase()` at their actual transitions.
 4. **Use the result.** Read the canonical output, inspect referenced results when needed, account for missing work, integrate the findings, and decide what is next. Continue, narrow the request, adapt the plan or finish.
 
 When you need a second model's **independent** judgment, use fresh context. For a dependent step, explicitly pass selected prior evidence; sibling history is not automatically shared. Avoid copying the whole parent transcript into every task.
@@ -53,6 +53,6 @@ Already have a draft and just want independent perspectives? Adapt `parallel-swe
 
 A role conveys **intent**; the requested permission tier conveys actual authority. Omission inherits the configured tier, potentially `danger`. Make that choice for the assignment rather than assuming `reviewer` means read-only. The child can still report a plausible concern when no executable check is available.
 
-Workflow scripts start with a literal `export const meta = { apiVersion: 1, name, description }` and return serializable data. Optional `meta.phases` with `phase()` improves visible progress. `agent()` failures throw `ChildRunError`; catch a failed *optional* branch when sibling work remains useful and retain the gap in the result. No imports, file APIs, Date, or Math.random in the worker. These are execution details, not steps to recite before every call.
+Workflow scripts start with a literal `export const meta = { apiVersion: 1, name, description }` and return serializable data. `meta.phases` with matching `phase()` calls communicates a coordinated roadmap; older saved scripts without phases remain valid. `agent()` failures throw `ChildRunError`; catch a failed *optional* branch when sibling work remains useful and retain the gap in the result. No imports, file APIs, Date, or Math.random in the worker. These are execution details, not steps to recite before every call.
 
 **The success condition:** real user work advances with fewer unneeded help reads, handoffs, children and corrections—not more elaborate orchestration.
