@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ConcurrencyLimiter } from "../src/core/concurrency.ts";
-import { buildCoordinatorPrompt, formatUsagePlaybook } from "../src/prompts.ts";
+import { buildCoordinatorPrompt, formatUsagePlaybook, usageWorkflowScript } from "../src/prompts.ts";
 import {
   ChildRunError,
   parseWorkflowScript,
