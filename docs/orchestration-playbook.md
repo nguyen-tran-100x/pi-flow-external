@@ -1,65 +1,94 @@
-# Orchestration playbook
+# Orchestration playbook: delegate work, keep moving
 
-**Goal:** Help Pi choose and run effective multi-agent workflows with external_workflow, rather than falling back to one vague delegation or shallow parallel calls.
+**Goal:** Help an agent use Flow naturally: see useful work, hand it to the right helpers, use the results and keep moving.
 
-The package now installs a discoverable Pi skill, [pi-flow-orchestration](../skills/pi-flow-orchestration/SKILL.md). Use it when the task needs independent scopes, sequential evidence, an adversarial check, or a limited fix/test loop. The skill is deliberately on demand: simple work should still use external_delegate.
+Flow has two main execution tools. The installed [pi-flow-orchestration skill](../skills/pi-flow-orchestration/SKILL.md) offers examples for nontrivial workflows; ordinary delegation does not need a skill invocation or a predefined plan.
 
-## Getting started
+## Choose by how the work connects
 
-Install or update pi-flow-external, then ask Pi:
-
-> Audit authentication across routes, middleware, and tokens. Use the pi-flow-orchestration skill to choose a plan, run independent checks, and tell me which scopes were not verified.
-
-You can also ask for a specific pattern: "Use branch and converge to examine three implementation approaches, then challenge the conclusion."
-
-If skill discovery is unavailable in a custom Pi setup, read [the skill](../skills/pi-flow-orchestration/SKILL.md) directly and call external_help({topic:"workflow"}) for the current helper syntax.
-
-## Pattern library
-
-| Pattern | Typical task | Flow behavior |
+| You need | Use | Example |
 | --- | --- | --- |
-| Delegate | One bounded question | external_delegate; do not pay for a workflow |
-| Parallel sweep | Audit independent routes, sources, topics | parallel() with scoped children; retain failures |
-| Pipeline | Draft -> verification -> output | Sequential await or pipeline() stages |
-| Branch and converge | Compare independent alternatives | Parallel branches, bounded evidence, final synthesis; optional scope discovery first |
-| Adversarial review | Challenge a plan or set of claims | Independent reviewer checks sources, not just agreement |
-| Bounded repair | Fix code and run explicit checks | One editor, read-only QA, capped retries if authorized |
+| One external assignment | `external_delegate` | Ask Codex to trace a failing test |
+| Several independent assignments | Multiple `external_delegate` calls | Ask one helper to inspect retries, another to map idempotency |
+| Connected tasks or one grouped result | `external_workflow` | Explore alternatives in parallel, then use the evidence in a subsequent step |
 
-The recipes are in [skills/pi-flow-orchestration/recipes](../skills/pi-flow-orchestration/recipes). They are trusted JavaScript scripts run by external_workflow. They are **not** new global helper functions.
+The parent can also work directly. **Multiple tasks alone do not imply a workflow.** No fixed agent count, template or extra sign-off is required.
 
-## Running a saved recipe
+## A natural journey
 
-Copy one recipe to an allowed workflow root, for example the session's trusted project .pi/workflows or the user's workflow directory, and call external_workflow with its saved name or scriptPath and **args**. The skill's own package directory is not automatically an allowed scriptPath.
+**1. Choose the help.** Decide what another model can usefully do. Pick the role and harness that fit; `worker` is fine for general work. Prefer your configured default harness when it has the needed abilities.
 
-Example for parallel-sweep.js:
+**2. Brief the assignment.** Give a goal, relevant workspace/context, what may change and the useful output. The child can choose its own method. The role gives instructions; the permission tier governs access. An omitted tier uses your configured default.
 
-    {
-      "scriptPath": "<allowed absolute workflow path>/parallel-sweep.js",
-      "args": {
-        "task": "Check repository auth enforcement",
-        "scopes": ["routes", "middleware", "tokens"],
-        "harness": "codex"
-      }
-    }
+**3. Delegate.** Use one or several direct calls. Reach for a workflow when child results need to become inputs for later work or when one grouped run genuinely helps supervision.
 
-Before launch the parent should explain the split, selected harnesses, permissions, which checks run in parallel, and what evidence will come back. Foreground is the default when the result is needed next.
+**4. Use the result.** Read the returned answer and missing work, decide what to check or integrate next, and continue with the original user objective. Use `external_runs` for referenced output or background work; a successful tool call alone does not prove the work met the task.
 
-The example pins Codex because it supports the explicit readonly tier; **it does not automatically switch backends**. For the read-only recipes, set harness to a verified available backend that enforces the required tier. Antigravity supports only danger, so these restricted examples do not work on it.
+### Example: one investigation
 
-**Bounded repair is Codex-only.** It rejects other harnesses before any editor starts. Supporting edit and readonly tiers is not enough: QA must also have shell access and structured output. OpenCode rejects the required schema, while Claude, Muse, and named Pi harnesses cannot shell-run tests at readonly. Before launch, confirm Codex is available and the checks can run in its read-only sandbox; checks that need workspace writes or network access may fail. Do not silently raise permissions to run them.
+```ts
+const receipt = await tools.external_delegate({
+  description: "Trace retry behavior",
+  role: "explorer",
+  harness: "codex",
+  permission: "readonly",
+  prompt: "Inspect checkout retry and idempotency code. Explain relevant paths and possible failure cases; do not edit.",
+});
+if (!receipt.ok) return receipt.error;
+// Check run.state.outcome; use inline result or inspect refs.final if delivered by reference.
+return receipt.data.run;
+```
 
-## What good behavior looks like
+Codex is illustrative, not the mandatory backend. Confirm availability when uncertain; the configured default harness may be sufficient for other tasks.
 
-- The parent decides the smallest useful workflow; multiple agents are never mandatory.
-- Each agent has a distinct scope, a deliverable, the required context and a check.
-- The parent preserves failures, uncertainties, and evidence omissions.
-- Only explicit results become handoffs; sibling history is not shared.
-- No claim of read-only safety rests on prompt wording alone.
-- Same-worktree concurrent edits are avoided unless truly disjoint; no worktree isolation is provided.
-- The final answer names unresolved issues and verifies the work against the user's goal.
+### Example: coordinated investigation
 
-Read [Workflows](workflows.md) for exact runtime syntax and [Public Contract](public-contract.md) for receipts, outcomes, and context boundaries. For evaluation tasks and acceptance criteria, see [Orchestration Evaluation](maintainer/orchestration-evaluation.md).
+Use `external_workflow` when one run should group related investigations. This is an **inline ad-hoc script**, not a registered recipe name:
 
-## Explicit limits of v1
+```js
+export const meta = {
+  apiVersion: 1,
+  name: "checkout-investigation",
+  description: "Compare retry and idempotency failure paths",
+  phases: [{ title: "Investigate", detail: "Two independent read-only investigations" }],
+};
+phase("Investigate");
+const reports = await parallel([
+  () => agent("Inspect retry handling and return evidence.", {
+    role: "explorer", harness: "codex", permission: "readonly", context: { mode: "none" },
+  }),
+  () => agent("Inspect idempotency handling and return evidence.", {
+    role: "explorer", harness: "codex", permission: "readonly", context: { mode: "none" },
+  }),
+]);
+return { reports };
+```
 
-This does not add new JS runtime helpers, automatic skill invocation outside native Pi discovery, cross-harness model routing policies, worktree isolation, or a workflow TUI. There is no fixed orchestration size or forced approval gate. The parent still chooses whether a delegation is worth its cost and owns task acceptance.
+If one optional investigation may fail without invalidating the others, catch `ChildRunError` within that branch and return a visible failed entry. If later work depends on an earlier answer, use sequential `await` and pass the selected result explicitly.
+
+A short heads-up to the user states the delegated assignments, order and expected result. That is communication, **not** a separate permission gate.
+
+## Recipes are starting points
+
+| Existing example | When to adapt it |
+| --- | --- |
+| [Parallel sweep](../skills/pi-flow-orchestration/recipes/parallel-sweep.js) | Independent scopes, visible partial failure |
+| [Branch and converge](../skills/pi-flow-orchestration/recipes/branch-and-converge.js) | Several investigations, one synthesis |
+| [Adversarial review](../skills/pi-flow-orchestration/recipes/adversarial-review.js) | Draft something, then obtain a fresh critique |
+| [Bounded repair](../skills/pi-flow-orchestration/recipes/bounded-repair.js) | Authorized fix/test iteration, Codex-only in this example |
+
+For an **already-written artifact**, adapt parallel sweep to ask distinct fresh reviewers about the same target; do not automatically run a drafting agent. An independent-review recipe variant may be added separately if usage supports it.
+
+A bundled recipe is a file in the skill, **not** a saved workflow registered by `name`. To use it, read its source and submit through `external_workflow({ script, args })`; or copy it to an allowed global/project workflow directory and use `scriptPath` or a saved `name`. A bundled recipe path is not automatically an allowed script root. See [Workflows](workflows.md) for exact selectors and run mechanics.
+
+## Read the reference that answers your question
+
+- [Skill](../skills/pi-flow-orchestration/SKILL.md) and [work shapes](../skills/pi-flow-orchestration/references/pattern-selection.md): choosing and composing useful delegation.
+- [Workflows](workflows.md): exact JavaScript APIs and `ChildRunError` handling.
+- [Public contract](public-contract.md) and `external_help({topic:"contracts"})`: result receipts, large-output references and argument shapes.
+- `external_help({topic:"capabilities"})`, [harness reference](harness-reference.md) and `/external doctor`: when a backend's abilities matter.
+- [Supervision](supervision-and-runtime.md): background runs, monitoring, cancellation and complete evidence.
+
+Default to foreground if the next step requires the result; background is for doing other work while the child runs or leaving work active across turns. Do not pay the overhead of background plus immediate wait when a foreground call is simpler.
+
+**Good orchestration makes delegated work easier to finish, not harder to administer.**
