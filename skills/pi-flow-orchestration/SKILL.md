@@ -1,6 +1,6 @@
 ---
 name: pi-flow-orchestration
-description: Choose useful delegation patterns for pi-flow-external: parallel work, bulk transcript/document map-reduce, pipelines, routing, discovering subtasks, independent review, and bounded refinement. Load just the matching pattern guide and example when coordinated work helps.
+description: "Choose useful delegation patterns for pi-flow-external: parallel work, bulk transcript/document map-reduce, pipelines, routing, discovering subtasks, independent review, and bounded refinement. Load just the matching pattern guide and example when coordinated work helps."
 ---
 
 # Delegate work, keep moving
