@@ -516,7 +516,8 @@ setInterval(() => {}, 1000);
 
     expect(getCurrentSystemPrompt(rootContext?.messages ?? [])).toContain("# External delegation");
     expect(getCurrentSystemPrompt(rootContext?.messages ?? [])).toContain("Harnesses: agy (default), claude, codex, grok, muse, opencode.");
-    expect(getCurrentSystemPrompt(rootContext?.messages ?? [])).toContain("agy alone may make one disclosed infrastructure retry");
+    expect(getCurrentSystemPrompt(rootContext?.messages ?? [])).toContain("Multiple tasks alone do not require a workflow");
+    expect(getCurrentSystemPrompt(rootContext?.messages ?? [])).toContain("external_help topics workflow, contracts, capabilities");
     expect(getToolNames(rootContext)).toContain("external_delegate");
     expect(getToolNames(rootContext)).toContain("external_help");
     expect(getToolNames(rootContext)).toContain("external_runs");
