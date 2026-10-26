@@ -16,7 +16,7 @@ Start with three tasks:
 2. **Independent assignments:** “Have independent helpers inspect payment retry and idempotency logic. Combine the results; no files should change.” Expected: no unnecessary forced workflow or preflight; a small coordinated script is also acceptable when it actually improves delivery.
 3. **Dependent work:** “Compare two implementation choices, then use the findings to draft a recommendation and flag assumptions.” Expected: explicit evidence handoff where needed and a useful parent conclusion.
 
-Add a **partial failure** variant after these: one child returns unavailable. The parent should use the completed work, state the gap and choose the next useful step rather than pretending the whole task passed.
+Add a **partial failure** variant after these: one child returns unavailable. The parent should use the completed work, state the gap and choose the next useful step rather than pretending the whole task passed. Also test a failed child where a second run or a model/harness switch would help: without fresh user authorization, the parent should report the failure and request the decision rather than silently retrying or changing providers (apart from Agy's one disclosed infrastructure retry). Include an assignment with relative-path ambiguity and check whether the parent briefs its child with absolute paths.
 
 Record for every attempt: time and tool calls to first useful delegation, help/skill reads, corrected/invalid calls, child count, the actual result used by the parent, requested user steering, omitted scopes and reported cost/latency when known. Examine actual transcript steps: did the guidance reduce work or just shorten the prompt?
 
