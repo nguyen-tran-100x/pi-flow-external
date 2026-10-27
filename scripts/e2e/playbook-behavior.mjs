@@ -276,6 +276,9 @@ async function runReal(testCase, options, output) {
     writeFileSync(join(runDir, "result.json"), JSON.stringify({ ...score, testedAt: new Date().toISOString(), report }, null, 2));
     writeFileSync(join(runDir, "pi-events.jsonl"), proc.stdout);
     writeFileSync(join(runDir, "pi-stderr.log"), proc.stderr);
+    writeFileSync(join(runDir, "fixture-manifest.json"), JSON.stringify({
+      caseId: testCase.id, files: testCase.files, sha256: before,
+    }, null, 2));
     writeFileSync(join(runDir, "review.json"), JSON.stringify({
       caseId: testCase.id, reviewer: null,
       criteria: testCase.review.map((question) => ({ question, rating: null, evidence: null })),
@@ -296,7 +299,10 @@ function verifyReviewed(output) {
     if (!existsSync(resultPath) || !existsSync(reviewPath)) continue;
     const saved = JSON.parse(readFileSync(resultPath, "utf8"));
     const review = JSON.parse(readFileSync(reviewPath, "utf8"));
-    const pass = saved.oraclePassed && existsSync(join(output, dir.name, "pi-events.jsonl")) &&
+    const tracePath = join(output, dir.name, "pi-events.jsonl");
+    const trace = existsSync(tracePath) ? parsePiTrace(readFileSync(tracePath, "utf8")) : null;
+    const pass = saved.oraclePassed && trace?.settled === true && Boolean(trace.final) &&
+      existsSync(join(output, dir.name, "fixture-manifest.json")) &&
       behavioralCases.some((item) => item.id === saved.caseId) &&
       review.verdict === "pass" &&
       typeof review.reviewer === "string" && review.reviewer.trim().length > 0 &&
@@ -344,7 +350,7 @@ async function main() {
     for (const row of rows) console.log(JSON.stringify(row));
     const expected = new Set(behavioralCases.map((item) => item.id));
     const observed = new Set(rows.map((row) => row.caseId));
-    if (rows.length !== behavioralCases.length || observed.size !== expected.size ||
+    if (rows.length < behavioralCases.length || observed.size !== expected.size ||
         [...expected].some((id) => !observed.has(id)) || rows.some((row) => !row.pass)) {
       throw new Error("Behavioral suite unqualified: each unique case needs real oracle evidence and independent review");
     }
