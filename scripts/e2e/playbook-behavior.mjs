@@ -62,6 +62,7 @@ export function parsePiTrace(raw) {
   }
   const calls = new Map();
   const assistantTexts = [];
+  const assistantMessages = [];
   for (const event of events) {
     if (event.type === "tool_execution_start") {
       const id = String(event.toolCallId ?? event.toolCall?.id ?? "uncategorized-" + calls.size);
@@ -76,9 +77,19 @@ export function parsePiTrace(raw) {
       const text = parts.filter((part) => part?.type === "text" && typeof part.text === "string")
         .map((part) => part.text).join("\n");
       if (text.trim()) assistantTexts.push(text);
+      assistantMessages.push(event.message);
     }
   }
-  return { events: events.length, toolCalls: [...calls.values()], final: assistantTexts.at(-1) ?? "" };
+  const settlements = events.filter((event) => event.type === "agent_settled");
+  const lastSettlement = settlements.at(-1);
+  const readPaths = [...calls.values()].filter((call) => call.name === "read").map((call) =>
+    String(call.args?.path ?? call.args?.file_path ?? call.args?.filePath ?? ""));
+  return {
+    events: events.length, toolCalls: [...calls.values()], final: assistantTexts.at(-1) ?? "",
+    settled: Boolean(lastSettlement && lastSettlement.aborted === false),
+    finalStopReason: assistantMessages.at(-1)?.stopReason ?? null,
+    readPaths, patternGuidesRead: readPaths.filter((name) => name.includes("/patterns/") && name.endsWith(".md")),
+  };
 }
 
 function sha(text) { return createHash("sha256").update(text).digest("hex"); }
@@ -121,27 +132,35 @@ export function evaluateTrial(testCase, evidence) {
   const observed = evidence.trace;
   const roots = observed.toolCalls.filter((call) => ["external_delegate", "external_workflow"].includes(call.name));
   const children = evidence.summaries.filter((summary) => !summary.file.startsWith("wf_"));
+  const successfulChildren = children.filter((summary) => summary.status === "done");
   const facts = testCase.expect.facts.map((token) => ({
     token, present: observed.final.includes(token),
   }));
   const exp = testCase.expect;
   const checks = [
     { id: "real-pi-process", pass: evidence.exitCode === 0 && !evidence.timedOut && observed.events > 0 },
+    { id: "agent-settled", pass: observed.settled === true && !["error", "aborted"].includes(observed.finalStopReason) },
     { id: "assistant-completed", pass: observed.final.length > 0 },
     { id: "evidence-coverage", pass: facts.every((fact) => fact.present), detail: facts },
     { id: "fixture-unchanged", pass: JSON.stringify(evidence.before) === JSON.stringify(evidence.after) },
   ];
   if (exp.minExternalRoots !== undefined) checks.push({ id: "external-used", pass: roots.length >= exp.minExternalRoots });
   if (exp.maxExternalRoots !== undefined) checks.push({ id: "no-extra-external-runs", pass: roots.length <= exp.maxExternalRoots });
-  if (exp.minChildren !== undefined) checks.push({ id: "enough-child-evidence", pass: children.length >= exp.minChildren });
-  if (exp.requireBackground) checks.push({
-    id: "background-invocation", pass: roots.some((call) => call.args?.background === true),
+  if (exp.minChildren !== undefined) checks.push({
+    id: "successful-child-evidence", pass: successfulChildren.length >= exp.minChildren,
   });
+  if (exp.requireBackground) {
+    checks.push({ id: "background-invocation", pass: roots.some((call) => call.args?.background === true) });
+    checks.push({ id: "no-immediate-wait", pass: !observed.toolCalls.some((call) =>
+      call.name === "external_runs" && call.args?.action === "wait") });
+    checks.push({ id: "handle-reported", pass: /\b(?:run|wf)_[A-Za-z0-9_-]+\b/.test(observed.final) });
+  }
   const failed = checks.filter((check) => !check.pass).map((check) => check.id);
   return {
     caseId: testCase.id, pattern: testCase.pattern, automaticChecks: checks,
     oraclePassed: failed.length === 0, failedChecks: failed,
-    childReceipts: children.length, rootToolCalls: roots.length,
+    childReceipts: children.length, successfulChildReceipts: successfulChildren.length,
+    rootToolCalls: roots.length, patternGuidesRead: observed.patternGuidesRead,
     // An actual provider and a passed output oracle are necessary but never sufficient.
     behavioralStatus: failed.length ? "failed-oracle" : "awaiting-independent-review",
     reviewCriteria: testCase.review,
@@ -170,9 +189,15 @@ async function spawnCaptured(command, argv, options) {
   return await new Promise((done) => {
     const proc = spawn(command, argv, { ...options, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "", stderr = "", timedOut = false, resolved = false;
-    const timeout = setTimeout(() => { timedOut = true; proc.kill("SIGTERM"); }, options.timeoutMs);
+    let forceKill;
+    const timeout = setTimeout(() => {
+      timedOut = true; proc.kill("SIGTERM");
+      forceKill = setTimeout(() => proc.kill("SIGKILL"), 3000);
+      forceKill.unref();
+    }, options.timeoutMs);
     const finish = (result) => {
       if (resolved) return; resolved = true; clearTimeout(timeout);
+      if (forceKill) clearTimeout(forceKill);
       done({ ...result, stdout, stderr, timedOut });
     };
     proc.stdout.on("data", (buf) => { stdout += buf.toString(); if (stdout.length > 64 * 1024 * 1024) proc.kill("SIGTERM"); });
@@ -208,6 +233,7 @@ async function runReal(testCase, options, output) {
     }
     const skill = resolve(options.skillPath ?? join(root, "skills/pi-flow-orchestration"));
     if (!existsSync(join(skill, "SKILL.md"))) throw new Error("Skill not found: " + skill);
+    mkdirSync(join(agent, "skills"), { recursive: true });
     cpSync(skill, join(agent, "skills/pi-flow-orchestration"), { recursive: true });
     const settings = join(agent, "pi-flow-external/settings.json");
     mkdirSync(dirname(settings), { recursive: true });
@@ -270,7 +296,9 @@ function verifyReviewed(output) {
     if (!existsSync(resultPath) || !existsSync(reviewPath)) continue;
     const saved = JSON.parse(readFileSync(resultPath, "utf8"));
     const review = JSON.parse(readFileSync(reviewPath, "utf8"));
-    const pass = saved.oraclePassed && review.verdict === "pass" &&
+    const pass = saved.oraclePassed && existsSync(join(output, dir.name, "pi-events.jsonl")) &&
+      behavioralCases.some((item) => item.id === saved.caseId) &&
+      review.verdict === "pass" &&
       typeof review.reviewer === "string" && review.reviewer.trim().length > 0 &&
       review.criteria.length === saved.reviewCriteria.length &&
       review.criteria.every((criterion) => Number.isInteger(criterion.rating) && criterion.rating >= 1 &&
@@ -285,7 +313,8 @@ function selftest() {
   const item = behavioralCases.find((c) => c.id === "parallel-known");
   const mock = [
     JSON.stringify({ type: "tool_execution_start", toolCallId: "first", toolName: "external_workflow", args: { background: false } }),
-    JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "Evidence CACHE-LOCK-27 and RETRY-WINDOW-81" }] } }),
+    JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Evidence CACHE-LOCK-27 and RETRY-WINDOW-81" }] } }),
+    JSON.stringify({ type: "agent_settled", aborted: false }),
   ].join("\n");
   const trace = parsePiTrace(mock);
   const evidence = { trace, exitCode: 0, timedOut: false, summaries: [
@@ -313,8 +342,11 @@ async function main() {
   if (options.verify) {
     const rows = verifyReviewed(resolve(options.verify));
     for (const row of rows) console.log(JSON.stringify(row));
-    if (rows.length < behavioralCases.length || rows.some((row) => !row.pass)) {
-      throw new Error("Behavioral suite unqualified: all cases need real oracle evidence and independent review");
+    const expected = new Set(behavioralCases.map((item) => item.id));
+    const observed = new Set(rows.map((row) => row.caseId));
+    if (rows.length !== behavioralCases.length || observed.size !== expected.size ||
+        [...expected].some((id) => !observed.has(id)) || rows.some((row) => !row.pass)) {
+      throw new Error("Behavioral suite unqualified: each unique case needs real oracle evidence and independent review");
     }
     console.log("PASS: all behavioral cases independently reviewed");
     return;
