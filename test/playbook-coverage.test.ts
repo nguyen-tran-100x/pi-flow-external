@@ -22,7 +22,7 @@ describe("playbook test coverage", () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(scenarios.cases.filter((scenario: any) => scenario.pattern !== "cross-cutting" &&
       scenario.pattern !== "baseline").map((scenario: any) => scenario.pattern).sort()).toEqual([
-        "batch-map-reduce", "bounded-refinement", "discover-and-delegate", "discover-and-delegate",
+        "batch-map-reduce", "bounded-refinement", "discover-and-delegate", "discover-and-delegate", "discover-and-delegate",
         "independent-review", "parallel-work", "pipeline", "routing",
       ]);
     const declared = coverage.requirements.filter((r: any) => r.kind === "pattern");

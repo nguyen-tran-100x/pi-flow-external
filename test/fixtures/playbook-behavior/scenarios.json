@@ -141,12 +141,36 @@
           "RETRY-REPLAY-61"
         ],
         "minExternalRoots": 1,
+        "minChildren": 2
+      },
+      "review": [
+        "Did the parent or an initial discovery child identify genuinely distinct, source-grounded scopes rather than generic labels?",
+        "Did at least two independent investigations examine the actual relevant work without redundant planning?",
+        "Did the parent integrate both root-cause findings, with evidence rather than invented conclusions?"
+      ]
+    },
+    {
+      "id": "discovery-child-decomposition",
+      "pattern": "discover-and-delegate",
+      "goal": "An initial external discovery helper should inspect this unfamiliar checkout repo to find independent, source-grounded investigation scopes. Only after that, delegate those scopes to other external helpers. Investigate double charges after reconnect, return evidence IDs and missing coverage, and do not edit.",
+      "files": {
+        "src/payment.ts": "// Vulnerability evidence: LEDGER-RACE-83. chargeCustomer() runs before requestId is written to the ledger. Two concurrent requests can both charge.\nexport async function chargeCustomer(requestId, api, ledger) { if (await ledger.has(requestId)) return 'duplicate'; await api.charge(); await ledger.store(requestId); return 'charged'; }\n",
+        "src/reconnect.ts": "// Vulnerability evidence: RETRY-REPLAY-61. Every reconnect calls chargeCustomer again with a freshly generated requestId.\nexport function onReconnect(customer, chargeCustomer) { return chargeCustomer(Date.now() + '-' + customer.id); }\n",
+        "src/telemetry.ts": "// Diagnostic dashboard tracking color and log formatting; not involved in charging.\nexport const color = 'blue';\n",
+        "README.md": "The user reports duplicate charges immediately after mobile reconnect. Relevant code may be anywhere in src/. Determine two independent source-grounded causes; do not assume telemetry is implicated.\n"
+      },
+      "expect": {
+        "facts": [
+          "LEDGER-RACE-83",
+          "RETRY-REPLAY-61"
+        ],
+        "minExternalRoots": 1,
         "minChildren": 3
       },
       "review": [
-        "Did the discovery phase ground scope proposals in actual project files rather than generic labels?",
-        "Were the discovered scopes independent, nonredundant, and sufficient to identify both causes?",
-        "Did the parent meaningfully integrate the workers' findings?"
+        "Did an external discovery child actually inspect the sources and propose distinct meaningful scopes, including both relevant risk paths?",
+        "Did subsequent workers receive the discovered questions and inspect the intended sources independently?",
+        "Did the final answer integrate the evidence, including limitations, without premature confidence or arbitrary extra helpers?"
       ]
     },
     {

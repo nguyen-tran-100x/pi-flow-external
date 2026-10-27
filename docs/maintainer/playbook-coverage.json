@@ -76,7 +76,8 @@
       ],
       "behavioral": [
         "discovery-unknown",
-        "discovery-known-skip"
+        "discovery-known-skip",
+        "discovery-child-decomposition"
       ]
     },
     {
@@ -140,7 +141,8 @@
       "behavioral": [
         "parallel-known",
         "batch-corpus",
-        "discovery-unknown"
+        "discovery-unknown",
+        "discovery-child-decomposition"
       ]
     },
     {
@@ -155,7 +157,8 @@
       "behavioral": [
         "discovery-unknown",
         "parallel-known",
-        "shared-edit-plan"
+        "shared-edit-plan",
+        "discovery-child-decomposition"
       ]
     },
     {
@@ -354,7 +357,8 @@
       ],
       "behavioral": [
         "independent-review",
-        "discovery-unknown"
+        "discovery-unknown",
+        "discovery-child-decomposition"
       ]
     }
   ]
