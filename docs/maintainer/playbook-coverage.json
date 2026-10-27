@@ -2,7 +2,7 @@
   "version": 1,
   "requirements": [
     {
-      "id": "pattern-parallel",
+      "id": "pattern-parallel-work",
       "kind": "pattern",
       "mechanical": [
         {
@@ -15,7 +15,7 @@
       ]
     },
     {
-      "id": "pattern-batch",
+      "id": "pattern-batch-map-reduce",
       "kind": "pattern",
       "mechanical": [
         {
@@ -62,7 +62,7 @@
       ]
     },
     {
-      "id": "pattern-discover",
+      "id": "pattern-discover-and-delegate",
       "kind": "pattern",
       "mechanical": [
         {
