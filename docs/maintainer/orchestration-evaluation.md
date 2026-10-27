@@ -66,3 +66,7 @@ Real-parent/provider trials must be opt-in and are not required for the offline 
 ## Promotion gate
 
 Only add new runtime helpers, automatic orchestration modes, or stronger UI based on repeated failures shown by these trials. First revise the skill and rerun the baseline/treatment comparison. Keep runtime extension optional and backward compatible wherever possible.
+
+## Dual-lane acceptance for the seven patterns (PR #103)
+
+See [Playbook Verification](playbook-test-plan.md) and its checked [coverage matrix](playbook-coverage.json). These connect each recommendation to existing or new mechanical tests and to an opt-in real Pi scenario with independently reviewed results. Do not infer model-quality or natural skill discovery from passing JS tests alone.

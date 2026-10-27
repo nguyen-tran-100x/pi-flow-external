@@ -1,60 +1,40 @@
 ---
 name: pi-flow-orchestration
-description: Help a Pi parent delegate useful work with external_delegate or compose external_workflow when related tasks benefit from coordination. Offers adaptable, tested recipes and pointers to exact Flow contracts.
+description: "Choose useful delegation patterns for pi-flow-external: parallel work, bulk transcript/document map-reduce, pipelines, routing, discovering subtasks, independent review, and bounded refinement. Load just the matching pattern guide and example when coordinated work helps."
 ---
 
 # Delegate work, keep moving
 
-You are already working on a user's task. Flow should extend your capacity, not turn delegation into another project. **The work determines the plan.** You own the outcome; children own their methods.
+Start with the user's task. Work locally or use `external_delegate` for an independent assignment; several unrelated jobs can use several direct calls. Use `external_workflow` when dependencies, a large collection, or grouped supervision make coordination worthwhile. No pattern name or skill read is required before ordinary delegation.
 
-## Choose the simplest useful action
+## Load only what helps this job
 
-| Your work | Reach for |
-| --- | --- |
-| You can finish directly with little overhead | Work locally |
-| One independent assignment needs another agent | `external_delegate` |
-| Several unrelated assignments can run independently | Several `external_delegate` calls (parallel if convenient) |
-| Assignments depend on each other, share a coordinated plan, or need one grouped result | `external_workflow` |
+Choose a row from the task, then read **that guide**, not the whole library. Each guide supplies its own example or a link to the exact recipe. Open technical references only for a question the example leaves unanswered. You may adapt or compose patterns rather than follow a fixed process.
 
-Multiple tasks do **not** automatically require a workflow. You do not need a planner agent, pattern label or skill invocation before ordinary delegation.
+| The work in front of you | Pattern guide | Example available there |
+| --- | --- | --- |
+| Inspect several known areas; optionally combine findings | [Parallel work](patterns/parallel-work.md) | Parallel sweep; branch and converge |
+| Process many transcripts/documents with per-item results and an optional overall summary | [Batch map–reduce](patterns/batch-map-reduce.md) | Size-aware batches, bounded pool, hierarchical reduction |
+| One result must feed the next step | [Pipeline](patterns/pipeline.md) | Extract evidence → draft from evidence |
+| Different kinds of input need different treatments | [Routing](patterns/routing.md) | Dispatch by a known category, without an extra classifier |
+| The work split is not known until sources are inspected | [Discover and delegate](patterns/discover-and-delegate.md) | Discover bounded tasks → process them |
+| Check an existing artifact through fresh perspectives | [Independent review](patterns/independent-review.md) | Separate assessments; optional draft-then-critic variant |
+| Improve a candidate against clear feedback or tests | [Bounded refinement](patterns/bounded-refinement.md) | Existing authorized fix/test recipe; stop on criterion or limit |
 
-**When delegating edits:** Parallel editing requires verified non-overlapping ownership or separate workspaces; Flow does not isolate working trees.
+These are reusable work shapes, not seven mandatory agent roles. The parent still chooses the scope and judges the result; children choose their working methods.
 
-## The parent-agent journey
+## Brief, run, use the result
 
-1. **See the work.** Understand what the user wants and what help actually adds value. Split by meaningful outcomes, not arbitrary agent count.
-2. **Brief each helper.** Give the goal, relevant sources/context, boundaries on changes, and a useful result to return. Choose a role and fitting harness; `worker` is a legitimate generalist. Let the child find its own method.
-3. **Launch.** Use a direct delegation for each independent job. For coordinated work, briefly explain the purpose, assignments, parallel/sequential order, allowed changes and deliverable. Follow the user's existing approval policy; do not invent an extra gate. Write a small JavaScript workflow using `agent()`, `parallel()` and sequential `await`; use `pipeline()` only for per-item stages. Show useful planned phases in `meta.phases` and call `phase()` at their actual transitions.
-4. **Use the result.** Read the canonical output, inspect referenced results when needed, account for missing work, integrate the findings, and decide what is next. Continue, narrow the request, adapt the plan or finish.
+Give each helper the goal, necessary facts and **absolute workspace/file paths**, allowed changes, and the result you need. Prefer a known suitable harness; `worker` is a useful generalist. For independent judgment use a fresh child without parent history; explicitly pass selected evidence to dependent steps.
 
-When you need a second model's **independent** judgment, use fresh context. For a dependent step, explicitly pass selected prior evidence; sibling history is not automatically shared. Avoid copying the whole parent transcript into every task.
+Before coordinated work, explain assignments, order, allowed changes and deliverable. Follow the user's existing approval policy; do not invent another gate. Put a useful roadmap in `meta.phases` and mark transitions with `phase()`; older saved scripts without phases remain valid.
 
-Default to foreground when the result is needed next. Use background when you can do other useful work first or the user wants the delegation left running, then collect through `external_runs`. Do not background-launch simply to wait immediately.
+Parallel editing requires verified non-overlapping ownership or separate workspaces; Flow does not isolate working trees. A role is intent, not access: choose a supported permission tier for the assignment. Retry a failed run or switch its model/harness only with user authorization; Agy's disclosed infrastructure retry remains the automatic exception.
 
-## Recipes: examples, not a ritual
+Use foreground when the answer is needed next. Background is for independent parent work or a user-requested deferred run; collect with `external_runs`. Read the returned result, retain missing work, and continue the original task. A successful call is not automatic task acceptance.
 
-The bundled scripts under [recipes/](recipes/) are examples you can **adapt**, not special runtime functions or compulsory plans:
+## Run an example without installing another workflow system
 
-| Useful work shape | Starting point |
-| --- | --- |
-| Several independent inspections with missing-scope accounting | [parallel-sweep.js](recipes/parallel-sweep.js) |
-| Parallel investigation whose findings feed a combined answer | [branch-and-converge.js](recipes/branch-and-converge.js) |
-| Generate a draft, then have a fresh critic challenge it | [adversarial-review.js](recipes/adversarial-review.js) |
-| Authorized editing with specified tests and a limited fix cycle | [bounded-repair.js](recipes/bounded-repair.js) |
+Read a linked script, then submit its text as `external_workflow({ script, args })`; for reuse, save it inside an allowed workflow root and use `scriptPath`. Bundled recipe files are **not registered saved-workflow names**. For example, the [batch map–reduce script](recipes/batch-map-reduce.js) is a file to load, not an `external_workflow` name alias.
 
-Already have a draft and just want independent perspectives? Adapt `parallel-sweep` with the **same target** and different review questions; do not run the draft stage from `adversarial-review` unnecessarily. A dedicated independent-review variant can be added later if repeated usage shows that it saves work.
-
-**How to use:** read a recipe and pass its source through `external_workflow({ script, args })` for a one-off task, or copy it into an allowed workflow root and invoke by `scriptPath`. Bundled skill recipe paths are not automatically registered as saved workflow names. The example backends are not automatic fallbacks; choose available harnesses that support the work.
-
-## Where to look only when needed
-
-- [Pattern examples](references/pattern-selection.md): alternative ways to divide and reconnect work, including situations where delegation is not worthwhile.
-- [Runtime rules](references/runtime-rules.md): exact JS constraints, supported permissions, backend quirks, replay and cancellation.
-- [Handoffs](references/handoffs.md): carrying selected evidence between children.
-- `external_help({ topic: "workflow" })` or `external_help({ topic: "contracts", tool: "external_workflow" })`: authoritative API syntax; `capabilities` for backend-specific options; `roles` to see available roles.
-
-A role conveys **intent**; the requested permission tier conveys actual authority. Omission inherits the configured tier, potentially `danger`. Make that choice for the assignment rather than assuming `reviewer` means read-only. The child can still report a plausible concern when no executable check is available.
-
-Workflow scripts start with a literal `export const meta = { apiVersion: 1, name, description }` and return serializable data. `meta.phases` with matching `phase()` calls communicates a coordinated roadmap; older saved scripts without phases remain valid. `agent()` failures throw `ChildRunError`; catch a failed *optional* branch when sibling work remains useful and retain the gap in the result. No imports, file APIs, Date, or Math.random in the worker. These are execution details, not steps to recite before every call.
-
-**The success condition:** real user work advances with fewer unneeded help reads, handoffs, children and corrections—not more elaborate orchestration.
+For an exact question: [composition notes](references/pattern-selection.md), [handoffs](references/handoffs.md), [runtime rules](references/runtime-rules.md), or `external_help` topics `workflow`, `contracts`, `roles`, `capabilities`, and `permissions`. No new runtime helpers or automatic routing are added by this skill.
