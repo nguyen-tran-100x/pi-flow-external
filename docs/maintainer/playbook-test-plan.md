@@ -1,81 +1,109 @@
-# Playbook verification: mechanical and live-agent coverage
+# Playbook verification: mechanical evidence and live-agent trials
 
-**Scope:** PR #103. A passing offline suite is NOT a passing behavioral qualification. Real parent-agent decisions and genuine child output require separate opt-in trials. This document lives in maintainer space and is not shipped to agents by default.
+**Scope:** PR #103. Offline checks have run; live parent/child trials and the matched comparison have not. A runnable behavioral suite is not behavioral qualification. Keep the draft/release hold.
 
-## Source of truth
+## Read the matrix honestly
 
-[playbook-coverage.json](playbook-coverage.json) maps **22 actionable recommendations**—seven advertised patterns and fifteen shared agent-journey decisions—to both:
+[playbook-coverage.json](playbook-coverage.json) inventories 22 declared recommendations: seven patterns and fifteen shared journey decisions. Each mechanical reference now says **direct** or **supporting**, with an explicit limit:
 
-- A **mechanical test** exercising the Flow runtime, a real executable example, a public contract, or a packaged skill/link. Test references point to actual test files and assertions.
-- At least one **behavioral case** in [scenarios.json](../../test/fixtures/playbook-behavior/scenarios.json). These provide realistic fixture files, an uncoached task, hidden checkable evidence, and specific qualitative criteria.
+- **Direct:** the named assertion exercises the stated mechanical slice. It does not prove model judgment or the entire recommendation.
+- **Supporting:** related infrastructure, not direct proof. Examples: a tool exists, a guide is reachable, or phase metadata parses.
+- **Behavioral scenario defined / not run:** a task and review criteria exist, but no live result has been observed. This status must not be reported as a pass.
 
-[playbook-coverage.test.ts](../../test/playbook-coverage.test.ts) fails if a pattern or requirement has no mapping, a mapped test is missing, a behavioral case is orphaned, or an expected fact is leaked into the user prompt. It exercises the live runner's selftest, which refuses to mark simulated text as completed real-agent behavior.
+[test/playbook-coverage.test.mjs](../../test/playbook-coverage.test.mjs) checks mapping consistency, references, fixture provenance and package resources. It **cannot determine semantic adequacy** from the presence of a test name. Maintainers must review new recommendations and classify the actual assertions; do not preserve prompt sentences merely to fill a matrix cell.
 
-**Coverage maintenance:** This matrix cannot infer brand-new recommendations from prose. A contributor reviewing any new or changed normative guidance must register its ID, executable test reference, and real-agent case before advertising it. CI rejects incomplete entries; human review still determines whether the mapping is meaningful. Do not test prompt word choices just to satisfy a matrix row.
+In particular, read-only concurrency does not prove worktree isolation. Flow has no built-in worktree isolation or merge arbitration. The live overlapping-edit planning case assesses the parent's decision, not a nonexistent runtime guarantee. Likewise, parser tests support phase display but do not prove the human received a proper briefing. Applicable live cases now explicitly rate that briefing.
 
-## Coverage by advertised pattern
+## Mechanical regression coverage
 
-| Pattern | Mechanical lane | Behavioral lane |
+| Pattern | Direct executable checks | Still a behavioral question |
 | --- | --- | --- |
-| Parallel work | Existing parallel sweep, partial failure, optional synthesis | `parallel-known`: two distinct investigations and an integrated answer |
-| Batch map–reduce | Uneven 240-item corpus, concurrency, ID completeness, failed and oversize reduction | `batch-corpus`: twelve real source files, per-item results, grounded theme counts |
-| Pipeline | Actual output handed to next child; first-stage failure stops dependency | `pipeline-evidence`: extract canary data then recommend with stated limits |
-| Routing | Known-category dispatch and rejection of unknown categories | `routing-known`: handle an incident, not a feature-design exercise |
-| **Discover and delegate** | Bounded structured output, malformed/duplicate scopes, goal/target fidelity, 8-worker concurrency, failure retention, no scope-authority escalation | **`discovery-unknown`:** parent or helper finds source-grounded scopes; **`discovery-child-decomposition`:** a discovery child proposes substantive scopes that workers then investigate; **`discovery-known-skip`:** avoid a discovery child when the split is already known |
-| Independent review | Fresh sibling-independent assessments, no mandatory draft or vote, partial failure | `independent-review`: find a genuine proposal/requirements contradiction |
-| Bounded refinement | Authorization, attempt cap, tested QA checks and backend constraints | `bounded-refinement`: revise against a rubric with finite feedback, no unapproved edits |
+| Parallel work | Scope collection, partial failure, explicit synthesis handoff and omissions | Useful division of work and truthful integration |
+| Batch map–reduce | Uneven 240-item batch, bounded concurrency, stable IDs, failed/unreadable sources, malformed and duplicate/missing records, size blockage and failed reductions | Extraction accuracy, quantitative claims and preservation of important detail |
+| Pipeline | Actual prior evidence passed onward; failure and oversized handoff stop the dependent call | Whether the downstream answer correctly uses evidence |
+| Routing | Both bug and feature branches; unknown-category rejection | Whether the parent chooses the appropriate treatment |
+| Discover and delegate | Structured bounds, empty/invalid/duplicate scopes, exact objective/question/target handoff, concurrency and partial failure | Grounded, useful, nonredundant and genuinely independent work discovery |
+| Independent review | Fresh calls, no sibling verdict handoff, no forced drafting, partial/all failure | Actual criticism quality and source fidelity |
+| Bounded refinement | Authorization flag, compatible backend, feedback, stop on pass/invalid QA, exhaust all allowed attempts while checks keep failing | Useful revisions and sound assessment criteria |
 
-Shared recommendations are covered by `local-baseline`, `background-progress`, `missing-source-no-retry`, `shared-edit-plan`, `permission-trap`, and the relevant pattern cases. The machine-readable matrix is authoritative; don't treat this prose table as a separate test registry.
-
-## Offline mechanical lane (CI)
+The tests execute the actual recipes and code extracted from the guides through Flow's runtime with deterministic child substitutes. Those substitutes are not real model decisions. Run:
 
 ```sh
 npm run check
 npm pack --dry-run --json
 node scripts/e2e/playbook-behavior.mjs --selftest
+```
+
+The verifier's regressions separately exercise retention after cleanup, exclusion of credential copies, missing facts/calls/receipts, altered manifests, stale scenarios, mismatched review IDs/questions and the reported all-cases false-pass reproduction. They intentionally construct synthetic artifacts to test consistency; they do not attest a provider run.
+
+## Fifteen live scenarios, not fifteen completed results
+
+The original task fixtures remain in [scenarios.json](../../test/fixtures/playbook-behavior/scenarios.json). A deterministic [large-output fixture](../../test/fixtures/playbook-behavior/large-output.mjs) adds a roughly 30 KB, 160-row source. The runner exports the full scenario list, including an explicit briefing/phase review criterion for coordinated-work cases.
+
+`large-output-inspection` requires a helper to return the whole source and the parent to retrieve its canonical result through final-result pages of at most 4096 bytes. Its oracle reconstructs a linked cursor sequence to the last page and compares the complete bytes against the source. Merely repeating the first/middle/last IDs cannot pass. The twelve-short-transcript corpus is no longer presented as evidence of large-output paging.
+
+Discovery has separate natural-choice, explicit discovery-child, and already-known-split cases. Several fixtures still contain easy clues and explicit delegation requests. They are execution/reading smoke tests, **not strong evidence of autonomous investigation or better ergonomics**. Do not compensate for these limitations by adding another evaluation framework. Start with the small matched comparison below and inspect the traces.
+
+## Retained trial evidence
+
+A real trial uses a temporary private agent directory with copies of the root model authentication files. Original user credentials are never edited. Before cleanup, the runner copies **only** the session and child-evidence roots into a private trial directory, preserving child prompts, tool activity, results and summaries. It does not copy the agent credential directory; known credential filenames and symlinks are excluded or rejected. The temporary directory is removed even when retention fails.
+
+Each trial retains:
+
+| Artifact | Purpose |
+| --- | --- |
+| `sessions/`, `evidence/` | Actual parent session and child run records; remain readable after scratch cleanup |
+| `artifacts.json` | Inventory/checksums of those retained files; detects missing or changed records |
+| `pi-events.jsonl`, `pi-stderr.log` | Parent tool events, answers and diagnostics |
+| `process.json` | Process outcome, model/harness and current scenario digest |
+| `fixture-manifest.json`, `fixture-after.json` | Source snapshot and before/after hashes |
+| `result.json` | Convenience cached score, **never authority for verification** |
+| `review.json` | Current case ID, exact review questions, reviewer, ratings and cited evidence |
+
+These artifacts may contain sensitive source material or conversations. Keep them private. Credential-file exclusion is not a transcript secret scrubber.
+
+## Running and reviewing real trials
+
+Use an authenticated Pi parent and working compatible child CLI. All calls are opt-in and may incur provider charges. Use model names actually available in that installation.
+
+```sh
 node scripts/e2e/playbook-behavior.mjs --list
-```
-
-The workflow tests invoke Flow's **actual JS runtime** with deterministic child substitutes. They prove scheduling, handoff, output shape, failure handling and authority boundaries **as tested**, not model reasoning or semantic task decomposition. No providers are called in the standard suite.
-
-## Real behavioral lane (opt-in, provider-billed)
-
-Use an authenticated Pi installation and independently authenticated external CLI on a trusted machine. The runner invokes `pi -p --mode json` with the actual extension and native skill discovery; each case uses its own temporary, readonly fixture. The real Pi authentication files are copied into an isolated, private agent directory and deleted afterward, not written back to the user's settings.
-
-```sh
-# Start with the strongest concern. The user request does NOT name a pattern.
 node scripts/e2e/playbook-behavior.mjs --real \
-  --case discovery-unknown --out /tmp/flow-playbook-trials \
+  --case discovery-child-decomposition --out /tmp/flow-trials \
   --model openai-codex/gpt-5.6-sol --harness codex
-
-# Execute every case before asserting comprehensive behavioral coverage.
 node scripts/e2e/playbook-behavior.mjs --real \
-  --case all --out /tmp/flow-playbook-trials \
+  --case large-output-inspection --out /tmp/flow-trials \
   --model openai-codex/gpt-5.6-sol --harness codex
 ```
 
-Specify models and harnesses actually available in the testing installation. Each real run stores: `pi-events.jsonl` (tool and message events), `result.json` (observable markers, invocation/child counts and unchanged-fixture checks), and `review.json` (case-specific independent assessment criteria).
-
-**A passed output oracle is not a behavioral pass.** A reviewer must inspect the actual session and child evidence, identify themselves in `reviewer`, rate each criterion **0 fail / 1 adequate / 2 strong**, and attach concrete evidence in every `criteria[].evidence`. Only mark `verdict: "pass"` if every criterion is at least adequate. Then:
+A reviewer must inspect the retained source/session/child records, not infer child behavior from the parent's final prose. Give each current question **0 fail / 1 adequate / 2 strong**, cite the concrete retained file/event supporting the rating, and mark `verdict: "pass"` only if every criterion is at least adequate. Do not rename, drop, substitute or reorder the generated questions.
 
 ```sh
-node scripts/e2e/playbook-behavior.mjs --verify /tmp/flow-playbook-trials
+node scripts/e2e/playbook-behavior.mjs --real --case all --out /tmp/flow-trials
+node scripts/e2e/playbook-behavior.mjs --verify /tmp/flow-trials
 ```
 
-The verifier fails if any required case lacks real evidence or a complete independent review. An unread or unrun case is not a pass. Retain artifacts privately; sessions may contain sensitive prompts, excerpts or output. Never upload credentials.
+`--verify` reloads the **current** scenario, checks its digest and complete fixture manifest, checks retained artifact inventories, re-parses parent events and child receipts, and recomputes the automatic checks. It ignores `result.json` pass flags and compares review IDs/questions to the current definition. Missing or stale artifacts and mismatched reviews fail. Legacy bundles that deleted their evidence cannot be migrated into passing records; rerun them.
 
-## Behavioral evaluation questions
+This is ordinary consistency checking, **not tamper-proof provider attestation or proof of reviewer independence**. A complete synthetic forgery is outside its claim. Human review must still establish the records came from the intended genuine trial and that conclusions are sound.
 
-Focus on the **user's completed work** before optimizing away help reads or agent calls.
+## Small matched baseline/candidate comparison
 
-- **Discovery quality:** Were discovered scopes grounded in inspected files, distinct, sufficient, and appropriate for parallel work? Did the known-split negative case skip extra discovery? Did each child investigate the actual proposed question, rather than simply returning plausible filler?
-- **Pattern and progressive discovery:** Did the parent select a defensible plan without needing all seven guides? Loading one useful reference is better than rushing into the wrong workflow. A good task can succeed without loading a guide.
-- **Evidence and continuation:** Did evidence flow explicitly across dependent steps? Were missing transcripts, unreadable files, failed children and uncertainty reported? Were source IDs and theme counts checked?
-- **Boundaries:** Did independent reviewers start fresh? Did the parent avoid competing editors, unsupported readonly modes, unapproved retries and model switches? Did foreground/background choice match the user's request?
-- **User outcome:** Did the final deliverable actually answer the task? An agent count, role count or perfectly formatted result alone is not evidence of quality.
+Before claiming improved agent experience, run the same local task, corpus task, unknown-split investigation and missing-source case against a baseline skill snapshot and the PR snapshot. Keep the same runner, runtime, model/harness, fixtures and approval settings; record both git SHAs and use separate output directories. `--skill-path` selects the snapshot under comparison.
 
-For comparisons, run identical cases against pre-pattern `main` and PR #103 on the same parent model/harness/configuration, keep exact commit SHAs and review both traces. Different decompositions can be equally valid; judge grounded outcomes and wasted orchestration effort, not matching a fixed script.
+```sh
+for condition in baseline candidate; do
+  # Point /tmp/flow-<condition> at the corresponding recorded repository snapshot.
+  for task in local-baseline batch-corpus discovery-unknown missing-source-no-retry; do
+    node scripts/e2e/playbook-behavior.mjs --real --case "$task" \
+      --skill-path "/tmp/flow-$condition/skills/pi-flow-orchestration" \
+      --out "/tmp/flow-comparison-$condition"
+  done
+done
+```
 
-## Release rule
+Compare completed task quality, missing evidence, useful versus redundant delegation and human correction. Help-read count is secondary. Different work splits can be equally good. The missing-source case tests limitation reporting, not a forced backend failure. These smoke fixtures and a small comparison are only initial evidence; don't generalize them into broad performance claims.
 
-**Status at authoring: mechanical suite passing; real model trials and independent reviews NOT executed.** The standard test suite must remain provider-free. This opt-in behavioral lane complements—not replaces—the repository's required [field-testing runbook](field-testing.md), including real parent→tool→child routing. Keep PR #103 draft and unmerged until actual live qualification and release metadata are resolved. Do not claim an ergonomics win or use `release:none` to ship modified skills.
+## Release status
+
+Live qualification and the comparison remain unrun. The provider/routing requirements in [field testing](field-testing.md) still apply independently. Keep PR #103 draft and unmerged until live evidence and version/lockfile/changelog/release-label preparation are resolved. Do not use `release:none` to bypass release policy for shipped skills.
