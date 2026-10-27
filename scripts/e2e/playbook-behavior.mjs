@@ -1,37 +1,35 @@
 #!/usr/bin/env node
-/**
- * Opt-in REAL parent/child agent trials for the orchestration playbook.
- * npm test never launches providers or runs this script. Do not interpret a
- * passed deterministic fixture as a behavioral pass.
- */
+/** Opt-in real parent/child trials. Offline tests and saved verdicts are not live qualification. */
 import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
-  chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync,
-  readFileSync, readdirSync, rmSync, statSync, writeFileSync,
+  chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync,
+  readFileSync, readdirSync, rmSync, writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const manifest = JSON.parse(readFileSync(join(root, "test/fixtures/playbook-behavior/scenarios.json"), "utf8"));
 export const behavioralCases = manifest.cases;
+const sha = (value) => createHash("sha256").update(value).digest("hex");
+const readJSON = (path) => JSON.parse(readFileSync(path, "utf8"));
+const writeJSON = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
+const nonempty = (value) => typeof value === "string" && value.trim().length > 0;
 
 function usage() {
   return [
-    "Opt-in parent+child behavioral trials. Each case may incur model/provider costs.",
-    "  node scripts/e2e/playbook-behavior.mjs --list",
-    "  node scripts/e2e/playbook-behavior.mjs --selftest",
+    "Opt-in parent+child behavioral trials. Each real case may incur provider costs.",
+    "  node scripts/e2e/playbook-behavior.mjs --list | --selftest",
     "  node scripts/e2e/playbook-behavior.mjs --real --case discovery-unknown --out /tmp/flow-trials",
     "    [--model provider/model] [--thinking high] [--harness codex] [--skill-path /path/to/skill]",
     "    [--agent-dir /path/to/real/pi/agent] [--timeout-ms 420000]",
     "  node scripts/e2e/playbook-behavior.mjs --verify /tmp/flow-trials",
-    "",
-    "An automatic oracle PASS only means test evidence is ready for human review.",
-    "The --verify command requires reviewed ratings for EVERY selected case.",
-    "The isolated agent directory mirrors root authentication in temporary files and is deleted on exit.",
-    "Review exported transcripts privately: they may contain sensitive prompts and source material.",
+    "An oracle pass still requires independent review. --verify recomputes current-case checks.",
+    "Retained sessions/evidence are private; credential directories are never exported.",
+    "Old evidence bundles without retained artifacts are unqualified; rerun, do not migrate pass flags.",
   ].join("\n");
 }
 
@@ -51,6 +49,15 @@ function parseArgs(argv) {
   return options;
 }
 
+function resultEnvelope(result) {
+  if (result?.details?.ok !== undefined) return result.details;
+  for (const part of result?.content ?? []) {
+    if (part?.type !== "text") continue;
+    try { const value = JSON.parse(part.text); if (value?.ok !== undefined) return value; } catch { /* not an envelope */ }
+  }
+  return null;
+}
+
 export function parsePiTrace(raw) {
   const events = [];
   for (const line of raw.split("\n")) {
@@ -58,32 +65,29 @@ export function parsePiTrace(raw) {
     try {
       const event = JSON.parse(line);
       if (event && typeof event === "object" && typeof event.type === "string") events.push(event);
-    } catch { /* stderr and non-event lines are not evidence */ }
+    } catch { /* non-event lines are not evidence */ }
   }
-  const calls = new Map();
-  const assistantTexts = [];
-  const assistantMessages = [];
+  const calls = new Map(), assistantTexts = [], assistantMessages = [];
   for (const event of events) {
     if (event.type === "tool_execution_start") {
-      const id = String(event.toolCallId ?? event.toolCall?.id ?? "uncategorized-" + calls.size);
-      calls.set(id, {
-        name: String(event.toolName ?? event.tool?.name ?? "unknown"),
-        args: event.args ?? event.arguments ?? {},
+      calls.set(String(event.toolCallId ?? "unidentified-" + calls.size), {
+        name: String(event.toolName ?? "unknown"), args: event.args ?? {},
       });
     }
-    // Root assistant text must come from a completed message, not from the user's prompt.
+    if (event.type === "tool_execution_end" && calls.has(String(event.toolCallId))) {
+      calls.get(String(event.toolCallId)).result = resultEnvelope(event.result);
+    }
     if (event.type === "message_end" && event.message?.role === "assistant") {
-      const parts = Array.isArray(event.message.content) ? event.message.content : [];
-      const text = parts.filter((part) => part?.type === "text" && typeof part.text === "string")
+      const text = (Array.isArray(event.message.content) ? event.message.content : [])
+        .filter((part) => part?.type === "text" && typeof part.text === "string")
         .map((part) => part.text).join("\n");
       if (text.trim()) assistantTexts.push(text);
       assistantMessages.push(event.message);
     }
   }
-  const settlements = events.filter((event) => event.type === "agent_settled");
-  const lastSettlement = settlements.at(-1);
-  const readPaths = [...calls.values()].filter((call) => call.name === "read").map((call) =>
-    String(call.args?.path ?? call.args?.file_path ?? call.args?.filePath ?? ""));
+  const lastSettlement = events.filter((event) => event.type === "agent_settled").at(-1);
+  const readPaths = [...calls.values()].filter((call) => call.name === "read")
+    .map((call) => String(call.args?.path ?? call.args?.file_path ?? call.args?.filePath ?? ""));
   return {
     events: events.length, toolCalls: [...calls.values()], final: assistantTexts.at(-1) ?? "",
     settled: Boolean(lastSettlement && lastSettlement.aborted === false),
@@ -92,13 +96,13 @@ export function parsePiTrace(raw) {
   };
 }
 
-function sha(text) { return createHash("sha256").update(text).digest("hex"); }
-function inventory(dir) {
+export function inventory(dir) {
   const out = {};
   function visit(current) {
-    for (const ent of readdirSync(current, { withFileTypes: true })) {
+    if (!lstatSync(current).isDirectory()) throw new Error("Expected an artifact directory");
+    for (const ent of readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       const full = join(current, ent.name);
-      if (ent.isSymbolicLink()) throw new Error("Fixture symlinks are not permitted");
+      if (ent.isSymbolicLink()) throw new Error("Artifact symlinks are not permitted");
       if (ent.isDirectory()) visit(full);
       else if (ent.isFile()) out[relative(dir, full).split(sep).join("/")] = sha(readFileSync(full));
     }
@@ -108,51 +112,92 @@ function inventory(dir) {
 }
 
 function evidenceSummaries(dir) {
-  const summaries = [];
-  if (!existsSync(dir)) return summaries;
-  function visit(current) {
-    for (const ent of readdirSync(current, { withFileTypes: true })) {
-      const full = join(current, ent.name);
-      if (ent.isDirectory()) visit(full);
-      else if (ent.name === "summary.json") {
-        try {
-          const data = JSON.parse(readFileSync(full, "utf8"));
-          summaries.push({ file: relative(dir, full), status: data.summary?.status ?? "unknown" });
-        } catch {
-          summaries.push({ file: relative(dir, full), status: "invalid" });
-        }
+  return Object.keys(inventory(dir)).filter((name) => basename(name) === "summary.json").map((file) => {
+    const record = readJSON(join(dir, file));
+    const summary = record.summary;
+    if (!summary || !nonempty(summary.status)) throw new Error("Invalid child summary: " + file);
+    const events = readFileSync(join(dir, dirname(file), "events.ndjson"), "utf8").trim()
+      .split("\n").map((line) => JSON.parse(line));
+    if (!nonempty(record.runId) || basename(dirname(file)) !== record.runId ||
+        !events.some((event) => event.runId === record.runId && event.type === "run_started") ||
+        !events.some((event) => event.runId === record.runId && event.type === "run_finished")) {
+      throw new Error("Child summary lacks matching run events: " + file);
+    }
+    return { file, status: summary.status };
+  });
+}
+
+// Allowlist the two evidence roots, never the credential-bearing agent directory.
+// Contents may still be sensitive; this is retention, not a transcript secret scrubber.
+export function retainTrialArtifacts(scratch, runDir) {
+  const hashes = {};
+  const excluded = new Set(["auth.json", "models.json", ".credentials.json", "credentials.json"]);
+  for (const kind of ["sessions", "evidence"]) {
+    const source = join(scratch, kind), dest = join(runDir, kind);
+    if (!lstatSync(source).isDirectory()) throw new Error("Missing artifact directory: " + kind);
+    mkdirSync(dest, { recursive: true, mode: 0o700 });
+    for (const file of Object.keys(inventory(source))) {
+      if (file.split("/").some((part) => excluded.has(part) || part === ".env")) continue;
+      const output = join(dest, file);
+      mkdirSync(dirname(output), { recursive: true, mode: 0o700 });
+      copyFileSync(join(source, file), output);
+      chmodSync(output, 0o600);
+    }
+    hashes[kind] = inventory(dest);
+  }
+  writeJSON(join(runDir, "artifacts.json"), { version: 1, sha256: hashes });
+  return hashes;
+}
+
+// Require a linked, complete sequence of final-result pages for the large-output trial.
+export function completePagedResult(trace, expectedText) {
+  const groups = new Map();
+  for (const call of trace.toolCalls) {
+    if (call.name !== "external_runs" || call.args?.action !== "inspect" || call.args?.view !== "final" ||
+        call.result?.ok !== true || call.args?.runIds?.length !== 1) continue;
+    const id = call.args.runIds[0];
+    const page = call.result.data?.page;
+    if (!page || typeof page.text !== "string") continue;
+    const pages = groups.get(id) ?? [];
+    pages.push({ cursor: call.args.cursor ?? null, next: page.nextCursor ?? null, text: page.text });
+    groups.set(id, pages);
+  }
+  for (const pages of groups.values()) {
+    let cursor = null, combined = "", count = 0;
+    const visited = new Set();
+    for (const page of pages) {
+      if (page.cursor !== cursor || visited.has(cursor)) continue;
+      visited.add(cursor); combined += page.text; count++; cursor = page.next;
+      if (cursor === null) {
+        if (count > 1 && Buffer.byteLength(combined) > 16384 && combined === expectedText) return true;
+        break;
       }
     }
   }
-  visit(dir);
-  return summaries;
+  return false;
 }
 
 export function evaluateTrial(testCase, evidence) {
   const observed = evidence.trace;
   const roots = observed.toolCalls.filter((call) => ["external_delegate", "external_workflow"].includes(call.name));
-  const children = evidence.summaries.filter((summary) => !summary.file.startsWith("wf_"));
+  const children = evidence.summaries.filter((summary) => !summary.file.split(/[\\/]/).some((part) => part.startsWith("wf_")));
   const successfulChildren = children.filter((summary) => summary.status === "done");
-  const facts = testCase.expect.facts.map((token) => ({
-    token, present: observed.final.includes(token),
-  }));
+  const facts = testCase.expect.facts.map((token) => ({ token, present: observed.final.includes(token) }));
   const exp = testCase.expect;
   const checks = [
-    { id: "real-pi-process", pass: evidence.exitCode === 0 && !evidence.timedOut && observed.events > 0 },
+    { id: "real-pi-process", pass: evidence.exitCode === 0 && evidence.timedOut === false && observed.events > 0 },
     { id: "agent-settled", pass: observed.settled === true && !["error", "aborted"].includes(observed.finalStopReason) },
     { id: "assistant-completed", pass: observed.final.length > 0 },
     { id: "evidence-coverage", pass: facts.every((fact) => fact.present), detail: facts },
-    { id: "fixture-unchanged", pass: JSON.stringify(evidence.before) === JSON.stringify(evidence.after) },
+    { id: "fixture-unchanged", pass: isDeepStrictEqual(evidence.before, evidence.after) },
   ];
   if (exp.minExternalRoots !== undefined) checks.push({ id: "external-used", pass: roots.length >= exp.minExternalRoots });
   if (exp.maxExternalRoots !== undefined) checks.push({ id: "no-extra-external-runs", pass: roots.length <= exp.maxExternalRoots });
-  if (exp.minChildren !== undefined) checks.push({
-    id: "successful-child-evidence", pass: successfulChildren.length >= exp.minChildren,
-  });
+  if (exp.minChildren !== undefined) checks.push({ id: "successful-child-evidence", pass: successfulChildren.length >= exp.minChildren });
+  if (exp.requirePagedSource) checks.push({ id: "complete-referenced-output", pass: completePagedResult(observed, testCase.files[exp.requirePagedSource]) });
   if (exp.requireBackground) {
     checks.push({ id: "background-invocation", pass: roots.some((call) => call.args?.background === true) });
-    checks.push({ id: "no-immediate-wait", pass: !observed.toolCalls.some((call) =>
-      call.name === "external_runs" && call.args?.action === "wait") });
+    checks.push({ id: "no-immediate-wait", pass: !observed.toolCalls.some((call) => call.name === "external_runs" && call.args?.action === "wait") });
     checks.push({ id: "handle-reported", pass: /\b(?:run|wf)_[A-Za-z0-9_-]+\b/.test(observed.final) });
   }
   const failed = checks.filter((check) => !check.pass).map((check) => check.id);
@@ -161,10 +206,54 @@ export function evaluateTrial(testCase, evidence) {
     oraclePassed: failed.length === 0, failedChecks: failed,
     childReceipts: children.length, successfulChildReceipts: successfulChildren.length,
     rootToolCalls: roots.length, patternGuidesRead: observed.patternGuidesRead,
-    // An actual provider and a passed output oracle are necessary but never sufficient.
-    behavioralStatus: failed.length ? "failed-oracle" : "awaiting-independent-review",
-    reviewCriteria: testCase.review,
+    behavioralStatus: failed.length ? "failed-oracle" : "awaiting-independent-review", reviewCriteria: testCase.review,
   };
+}
+
+// Rebuild from current case + retained files; result.json is a cache, never a pass authority.
+export function verifyTrial(runDir, cases = behavioralCases) {
+  let caseId = null;
+  try {
+    const processRecord = readJSON(join(runDir, "process.json"));
+    caseId = processRecord.caseId;
+    const testCase = cases.find((item) => item.id === caseId);
+    if (!testCase || processRecord.version !== 2 || processRecord.caseDigest !== sha(JSON.stringify(testCase))) {
+      throw new Error("Unknown or stale case definition; rerun against current scenarios");
+    }
+    const fixture = readJSON(join(runDir, "fixture-manifest.json"));
+    const expected = Object.fromEntries(Object.entries(testCase.files).map(([name, value]) => [name, sha(value)]));
+    if (fixture.caseId !== caseId || !isDeepStrictEqual(fixture.files, testCase.files) ||
+        !isDeepStrictEqual(fixture.sha256, expected)) throw new Error("Fixture manifest does not match the current case");
+    const after = readJSON(join(runDir, "fixture-after.json"));
+    const artifacts = readJSON(join(runDir, "artifacts.json"));
+    if (artifacts.version !== 1) throw new Error("Unknown artifact format");
+    for (const kind of ["sessions", "evidence"]) {
+      if (!isDeepStrictEqual(artifacts.sha256?.[kind], inventory(join(runDir, kind)))) {
+        throw new Error("Missing or changed retained " + kind + " artifacts");
+      }
+    }
+    if (!Object.keys(artifacts.sha256.sessions).some((name) => name.endsWith(".jsonl"))) {
+      throw new Error("No retained parent session");
+    }
+    const trace = parsePiTrace(readFileSync(join(runDir, "pi-events.jsonl"), "utf8"));
+    const score = evaluateTrial(testCase, {
+      ...processRecord, trace, summaries: evidenceSummaries(join(runDir, "evidence")), before: expected, after,
+    });
+    const review = readJSON(join(runDir, "review.json"));
+    const reviewOK = review.caseId === caseId && review.verdict === "pass" && nonempty(review.reviewer) &&
+      Array.isArray(review.criteria) && review.criteria.length === testCase.review.length &&
+      review.criteria.every((criterion, index) => criterion?.question === testCase.review[index] &&
+        Number.isInteger(criterion.rating) && criterion.rating >= 1 && criterion.rating <= 2 && nonempty(criterion.evidence));
+    return { caseId, pass: score.oraclePassed && reviewOK, oraclePassed: score.oraclePassed,
+      failedChecks: [...score.failedChecks, ...(reviewOK ? [] : ["current-case-review"])], verdict: review.verdict };
+  } catch (error) {
+    return { caseId, pass: false, oraclePassed: false, failedChecks: [String(error.message || error)] };
+  }
+}
+
+export function verifyReviewed(output, cases = behavioralCases) {
+  return readdirSync(output, { withFileTypes: true }).filter((entry) => entry.isDirectory())
+    .map((entry) => ({ directory: entry.name, ...verifyTrial(join(output, entry.name), cases) }));
 }
 
 function ensureFixturePath(base, name) {
@@ -177,27 +266,19 @@ function createFixture(dir, files) {
   mkdirSync(dir, { recursive: true });
   for (const [name, content] of Object.entries(files)) {
     const full = ensureFixturePath(dir, name);
-    mkdirSync(dirname(full), { recursive: true });
-    writeFileSync(full, content);
+    mkdirSync(dirname(full), { recursive: true }); writeFileSync(full, content);
   }
 }
-
-function commandPresent(name) {
-  return spawnSync("which", [name], { stdio: "ignore" }).status === 0;
-}
+function commandPresent(name) { return spawnSync("which", [name], { stdio: "ignore" }).status === 0; }
 async function spawnCaptured(command, argv, options) {
   return await new Promise((done) => {
     const proc = spawn(command, argv, { ...options, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "", stderr = "", timedOut = false, resolved = false;
-    let forceKill;
+    let stdout = "", stderr = "", timedOut = false, resolved = false, forceKill;
     const timeout = setTimeout(() => {
-      timedOut = true; proc.kill("SIGTERM");
-      forceKill = setTimeout(() => proc.kill("SIGKILL"), 3000);
-      forceKill.unref();
+      timedOut = true; proc.kill("SIGTERM"); forceKill = setTimeout(() => proc.kill("SIGKILL"), 3000); forceKill.unref();
     }, options.timeoutMs);
     const finish = (result) => {
-      if (resolved) return; resolved = true; clearTimeout(timeout);
-      if (forceKill) clearTimeout(forceKill);
+      if (resolved) return; resolved = true; clearTimeout(timeout); if (forceKill) clearTimeout(forceKill);
       done({ ...result, stdout, stderr, timedOut });
     };
     proc.stdout.on("data", (buf) => { stdout += buf.toString(); if (stdout.length > 64 * 1024 * 1024) proc.kill("SIGTERM"); });
@@ -208,171 +289,107 @@ async function spawnCaptured(command, argv, options) {
 }
 
 async function runReal(testCase, options, output) {
-  if (!commandPresent("pi")) throw new Error("Missing real pi CLI; run --selftest for local checks only");
+  if (!commandPresent("pi")) throw new Error("Missing real pi CLI; --selftest does not qualify real behavior");
   if (!commandPresent(options.harness)) throw new Error("Missing external CLI " + options.harness);
-  if (!["codex", "claude", "grok", "muse"].includes(options.harness)) {
-    throw new Error("This trial requires a harness with enforceable readonly access");
-  }
+  if (!["codex", "claude", "grok", "muse"].includes(options.harness)) throw new Error("Trial requires an enforceable readonly harness");
   const agentRoot = resolve(options.agentDir ?? process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"));
-  const scratch = mkdtempSync(join(tmpdir(), "flow-playbook-live-"));
-  chmodSync(scratch, 0o700);
-  const workspace = join(scratch, "fixture"), agent = join(scratch, "agent");
-  const sessions = join(scratch, "sessions"), evidence = join(scratch, "evidence");
+  const scratch = mkdtempSync(join(tmpdir(), "flow-playbook-live-")); chmodSync(scratch, 0o700);
+  const workspace = join(scratch, "fixture"), agent = join(scratch, "agent"), sessions = join(scratch, "sessions"), evidence = join(scratch, "evidence");
+  const runDir = join(output, testCase.id + "-" + randomUUID().slice(0, 8));
+  mkdirSync(runDir, { recursive: true, mode: 0o700 });
   mkdirSync(agent, { recursive: true }); mkdirSync(sessions); mkdirSync(evidence);
-  let report;
   try {
     createFixture(workspace, testCase.files);
     const before = inventory(workspace);
-    // Source credentials are never changed; ephemeral copies are removed in finally.
     for (const name of ["auth.json", "models.json"]) {
       const from = join(agentRoot, name);
-      if (existsSync(from)) {
-        copyFileSync(from, join(agent, name));
-        chmodSync(join(agent, name), 0o600);
-      }
+      if (existsSync(from)) { copyFileSync(from, join(agent, name)); chmodSync(join(agent, name), 0o600); }
     }
     const skill = resolve(options.skillPath ?? join(root, "skills/pi-flow-orchestration"));
     if (!existsSync(join(skill, "SKILL.md"))) throw new Error("Skill not found: " + skill);
-    mkdirSync(join(agent, "skills"), { recursive: true });
-    cpSync(skill, join(agent, "skills/pi-flow-orchestration"), { recursive: true });
-    const settings = join(agent, "pi-flow-external/settings.json");
-    mkdirSync(dirname(settings), { recursive: true });
-    writeFileSync(settings, JSON.stringify({
-      version: 5, defaultHarness: options.harness, defaultPermission: "readonly",
-      maxConcurrentSubagents: 4, subagentTimeoutMs: options.timeoutMs,
-    }));
+    mkdirSync(join(agent, "skills"), { recursive: true }); cpSync(skill, join(agent, "skills/pi-flow-orchestration"), { recursive: true });
+    const settings = join(agent, "pi-flow-external/settings.json"); mkdirSync(dirname(settings), { recursive: true });
+    writeJSON(settings, { version: 5, defaultHarness: options.harness, defaultPermission: "readonly", maxConcurrentSubagents: 4, subagentTimeoutMs: options.timeoutMs });
     const prompt = [
       "You are working in this isolated test project: " + workspace,
       "Complete the user's task with the tools and resources available to you.",
       "Use appropriate external help when helpful; do not invent files or claim success without evidence.",
-      "Do not edit any files. Report source IDs and missing evidence where asked.",
-      "",
-      testCase.goal,
+      "Do not edit any files. Report source IDs and missing evidence where asked.", "", testCase.goal,
     ].join("\n");
-    const promptFile = join(scratch, "request.txt");
-    writeFileSync(promptFile, prompt);
-    const argv = [
-      "-p", "--mode", "json", "--model", options.model, "--thinking", options.thinking,
+    const promptFile = join(scratch, "request.txt"); writeFileSync(promptFile, prompt);
+    const argv = ["-p", "--mode", "json", "--model", options.model, "--thinking", options.thinking,
       "--session-dir", sessions, "--no-extensions", "--extension", join(root, "index.ts"),
       "--no-prompt-templates", "--no-themes", "--no-context-files",
-      "--tools", "read,ls,find,grep,external_delegate,external_workflow,external_runs,external_help",
-      "--approve", "@" + promptFile,
-    ];
+      "--tools", "read,ls,find,grep,external_delegate,external_workflow,external_runs,external_help", "--approve", "@" + promptFile];
     const proc = await spawnCaptured("pi", argv, {
       cwd: workspace, timeoutMs: options.timeoutMs,
       env: { ...process.env, PI_CODING_AGENT_DIR: agent, PI_FLOW_EXTERNAL_RUNS_DIR: evidence },
     });
-    const trace = parsePiTrace(proc.stdout);
-    const summaries = evidenceSummaries(evidence);
-    report = {
-      testCase: testCase.id, pattern: testCase.pattern, version: 1, model: options.model,
-      harness: options.harness, skillPath: skill, exitCode: proc.exitCode,
-      spawnError: proc.spawnError ?? null, timedOut: proc.timedOut, signal: proc.signal ?? null,
-      before, after: inventory(workspace), trace, summaries,
-    };
-    const score = evaluateTrial(testCase, report);
-    const runDir = join(output, testCase.id + "-" + randomUUID().slice(0, 8));
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(join(runDir, "result.json"), JSON.stringify({ ...score, testedAt: new Date().toISOString(), report }, null, 2));
-    writeFileSync(join(runDir, "pi-events.jsonl"), proc.stdout);
-    writeFileSync(join(runDir, "pi-stderr.log"), proc.stderr);
-    writeFileSync(join(runDir, "fixture-manifest.json"), JSON.stringify({
-      caseId: testCase.id, files: testCase.files, sha256: before,
-    }, null, 2));
-    writeFileSync(join(runDir, "review.json"), JSON.stringify({
-      caseId: testCase.id, reviewer: null,
-      criteria: testCase.review.map((question) => ({ question, rating: null, evidence: null })),
-      verdict: "unreviewed", notes: "",
-    }, null, 2));
+    const processRecord = { version: 2, caseId: testCase.id, caseDigest: sha(JSON.stringify(testCase)),
+      model: options.model, thinking: options.thinking, harness: options.harness, skillPath: skill,
+      exitCode: proc.exitCode, timedOut: proc.timedOut, spawnError: proc.spawnError ?? null, signal: proc.signal ?? null };
+    writeJSON(join(runDir, "process.json"), processRecord);
+    writeFileSync(join(runDir, "pi-events.jsonl"), proc.stdout, { mode: 0o600 });
+    writeFileSync(join(runDir, "pi-stderr.log"), proc.stderr, { mode: 0o600 });
+    writeJSON(join(runDir, "fixture-manifest.json"), { caseId: testCase.id, files: testCase.files, sha256: before });
+    const after = inventory(workspace); writeJSON(join(runDir, "fixture-after.json"), after);
+    const score = evaluateTrial(testCase, { ...processRecord, before, after, trace: parsePiTrace(proc.stdout), summaries: evidenceSummaries(evidence) });
+    writeJSON(join(runDir, "result.json"), { ...score, testedAt: new Date().toISOString() });
+    writeJSON(join(runDir, "review.json"), { caseId: testCase.id, reviewer: null,
+      criteria: testCase.review.map((question) => ({ question, rating: null, evidence: null })), verdict: "unreviewed", notes: "" });
     return { caseId: testCase.id, runDir, score };
   } finally {
-    rmSync(scratch, { recursive: true, force: true });
+    // Retain even failing trials; failure to retain cannot leave credential copies behind.
+    try { retainTrialArtifacts(scratch, runDir); }
+    finally { rmSync(scratch, { recursive: true, force: true }); }
   }
-}
-
-function verifyReviewed(output) {
-  const rows = [];
-  for (const dir of readdirSync(output, { withFileTypes: true })) {
-    if (!dir.isDirectory()) continue;
-    const resultPath = join(output, dir.name, "result.json");
-    const reviewPath = join(output, dir.name, "review.json");
-    if (!existsSync(resultPath) || !existsSync(reviewPath)) continue;
-    const saved = JSON.parse(readFileSync(resultPath, "utf8"));
-    const review = JSON.parse(readFileSync(reviewPath, "utf8"));
-    const tracePath = join(output, dir.name, "pi-events.jsonl");
-    const trace = existsSync(tracePath) ? parsePiTrace(readFileSync(tracePath, "utf8")) : null;
-    const pass = saved.oraclePassed && trace?.settled === true && Boolean(trace.final) &&
-      existsSync(join(output, dir.name, "fixture-manifest.json")) &&
-      behavioralCases.some((item) => item.id === saved.caseId) &&
-      review.verdict === "pass" &&
-      typeof review.reviewer === "string" && review.reviewer.trim().length > 0 &&
-      review.criteria.length === saved.reviewCriteria.length &&
-      review.criteria.every((criterion) => Number.isInteger(criterion.rating) && criterion.rating >= 1 &&
-        criterion.rating <= 2 && typeof criterion.evidence === "string" && criterion.evidence.trim());
-    rows.push({ caseId: saved.caseId, pass, oraclePassed: saved.oraclePassed, verdict: review.verdict });
-  }
-  return rows;
 }
 
 function selftest() {
   if (!Array.isArray(behavioralCases) || behavioralCases.length < 7) throw new Error("Missing behavioral cases");
   const item = behavioralCases.find((c) => c.id === "parallel-known");
-  const mock = [
-    JSON.stringify({ type: "tool_execution_start", toolCallId: "first", toolName: "external_workflow", args: { background: false } }),
-    JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Evidence CACHE-LOCK-27 and RETRY-WINDOW-81" }] } }),
-    JSON.stringify({ type: "agent_settled", aborted: false }),
-  ].join("\n");
-  const trace = parsePiTrace(mock);
-  const evidence = { trace, exitCode: 0, timedOut: false, summaries: [
+  const raw = [
+    { type: "tool_execution_start", toolCallId: "first", toolName: "external_workflow", args: {} },
+    { type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Evidence CACHE-LOCK-27 and RETRY-WINDOW-81" }] } },
+    { type: "agent_settled", aborted: false },
+  ].map((event) => JSON.stringify(event)).join("\n");
+  const evidence = { trace: parsePiTrace(raw), exitCode: 0, timedOut: false, summaries: [
     { file: "run_a/summary.json", status: "done" }, { file: "run_b/summary.json", status: "done" },
   ], before: { a: "digest" }, after: { a: "digest" } };
-  const pass = evaluateTrial(item, evidence);
-  if (!pass.oraclePassed || pass.behavioralStatus !== "awaiting-independent-review") throw new Error("Expected a review-needed oracle success");
-  evidence.after.a = "tampered";
-  const fail = evaluateTrial(item, evidence);
-  if (fail.oraclePassed || !fail.failedChecks.includes("fixture-unchanged")) throw new Error("Tampering must fail");
-  if (parsePiTrace('{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"fake pass"}]}}').final) {
-    throw new Error("User prompts must never count as assistant evidence");
-  }
-  console.log("Selftest passed: real-event-only parsing, oracle coverage, manual-review hold, tamper rejection.");
+  const score = evaluateTrial(item, evidence);
+  if (!score.oraclePassed || score.behavioralStatus !== "awaiting-independent-review") throw new Error("Expected review hold");
+  evidence.after.a = "changed";
+  if (evaluateTrial(item, evidence).oraclePassed) throw new Error("Changed fixture must fail");
+  if (parsePiTrace('{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"fake pass"}]}}').final) throw new Error("User input is not an answer");
+  console.log("Selftest passed: output oracles and review hold; synthetic checks do not establish provider provenance.");
 }
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) { console.log(usage()); return; }
-  if (options.list) {
-    for (const item of behavioralCases) console.log(item.id + " (" + item.pattern + "): " + item.review[0]);
-    return;
-  }
+  if (options.list) { for (const item of behavioralCases) console.log(item.id + " (" + item.pattern + "): " + item.review[0]); return; }
   if (options.selftest) { selftest(); return; }
   if (options.verify) {
     const rows = verifyReviewed(resolve(options.verify));
     for (const row of rows) console.log(JSON.stringify(row));
-    const expected = new Set(behavioralCases.map((item) => item.id));
-    const observed = new Set(rows.map((row) => row.caseId));
+    const expected = new Set(behavioralCases.map((item) => item.id)), observed = new Set(rows.map((row) => row.caseId));
     if (rows.length < behavioralCases.length || observed.size !== expected.size ||
-        [...expected].some((id) => !observed.has(id)) || rows.some((row) => !row.pass)) {
-      throw new Error("Behavioral suite unqualified: each unique case needs real oracle evidence and independent review");
-    }
-    console.log("PASS: all behavioral cases independently reviewed");
-    return;
+        [...expected].some((id) => !observed.has(id)) || rows.some((row) => !row.pass)) throw new Error("Behavioral suite unqualified: every current case needs retained evidence and matching review");
+    console.log("PASS: current-case automatic checks recomputed; matching reviewer records present (not provider attestation)."); return;
   }
   if (!options.real || !options.out || !options.case) throw new Error("Use --real --out DIR --case ID (or --case all). Run --help.");
   const selected = options.case === "all" ? behavioralCases : behavioralCases.filter((item) => item.id === options.case);
   if (!selected.length) throw new Error("Unknown case " + options.case);
-  const output = resolve(options.out);
-  mkdirSync(output, { recursive: true });
+  const output = resolve(options.out); mkdirSync(output, { recursive: true, mode: 0o700 });
   let failed = false;
   for (const item of selected) {
     const result = await runReal(item, options, output);
-    console.log(JSON.stringify({ caseId: item.id, oraclePassed: result.score.oraclePassed,
-      behavioralStatus: result.score.behavioralStatus, evidence: result.runDir }));
+    console.log(JSON.stringify({ caseId: item.id, oraclePassed: result.score.oraclePassed, behavioralStatus: result.score.behavioralStatus, evidence: result.runDir }));
     if (!result.score.oraclePassed) failed = true;
   }
   if (failed) process.exitCode = 1;
-  else console.log("Automated oracles passed. Not certified: complete review.json with evidence, then run --verify.");
+  else console.log("Output oracles passed. Complete review.json from retained evidence, then run --verify.");
 }
-
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((error) => { console.error("Playbook trial failed: " + error.message); process.exitCode = 1; });
 }
