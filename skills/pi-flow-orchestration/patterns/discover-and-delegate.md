@@ -23,7 +23,8 @@ if (!text(harness)) throw new Error("args.harness must be nonempty");
 const options = { role: "worker", harness, permission: "readonly", context: { mode: "none" } };
 phase("Discover");
 const discovery = await agent("Inspect " + input.target + " for: " + input.task +
-  ". Identify distinct useful investigation scopes within this task. No edits. Return no tasks if none are needed.", {
+  ". Identify distinct useful, evidence-grounded scopes that can be inspected independently. " +
+  "If the work must be sequenced instead, return no parallel scopes and explain why in reason. No edits.", {
   ...options, description: "Discover scopes", schema: {
     type: "object", additionalProperties: false, required: ["tasks", "reason"], properties: {
       reason: { type: "string" }, tasks: { type: "array", maxItems: maxTasks, items: {
