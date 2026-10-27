@@ -1,18 +1,18 @@
 # Playbook verification: mechanical evidence and live-agent trials
 
-**Scope:** PR #103. Offline checks have run; live parent/child trials and the matched comparison have not. A runnable behavioral suite is not behavioral qualification. Keep the draft/release hold.
+**Scope:** PR #103. Nine live runs were reported, but runner defects, mixed child harnesses and a model-facing pagination problem prevent release qualification. See [the reported results and narrow correction plan](playbook-live-trial-followup.md). The corrected runner has mechanical regression coverage; no new live result or efficiency improvement is claimed. Keep the draft/release hold.
 
 ## Read the matrix honestly
 
-[playbook-coverage.json](playbook-coverage.json) inventories 22 declared recommendations: seven patterns and fifteen shared journey decisions. Each mechanical reference now says **direct** or **supporting**, with an explicit limit:
+[playbook-coverage.json](playbook-coverage.json) inventories 22 declared recommendations: seven patterns and fifteen shared journey decisions. Each mechanical reference says **direct** or **supporting**, with an explicit limit:
 
 - **Direct:** the named assertion exercises the stated mechanical slice. It does not prove model judgment or the entire recommendation.
 - **Supporting:** related infrastructure, not direct proof. Examples: a tool exists, a guide is reachable, or phase metadata parses.
-- **Behavioral scenario defined / not run:** a task and review criteria exist, but no live result has been observed. This status must not be reported as a pass.
+- **Behavioral scenario defined / not run:** a task and review criteria exist, but no qualifying result for the corrected candidate has been recorded. This is not a pass. Earlier reviewer-reported executions are documented separately in the live follow-up, not erased or upgraded into qualification.
 
 [test/playbook-coverage.test.mjs](../../test/playbook-coverage.test.mjs) checks mapping consistency, references, fixture provenance and package resources. It **cannot determine semantic adequacy** from the presence of a test name. Maintainers must review new recommendations and classify the actual assertions; do not preserve prompt sentences merely to fill a matrix cell.
 
-In particular, read-only concurrency does not prove worktree isolation. Flow has no built-in worktree isolation or merge arbitration. The live overlapping-edit planning case assesses the parent's decision, not a nonexistent runtime guarantee. Likewise, parser tests support phase display but do not prove the human received a proper briefing. Applicable live cases now explicitly rate that briefing.
+In particular, read-only concurrency does not prove worktree isolation. Flow has no built-in worktree isolation or merge arbitration. The live overlapping-edit planning case assesses the parent's decision, not a nonexistent runtime guarantee. Likewise, parser tests support phase display but do not prove the human received a proper briefing. Applicable live cases explicitly rate that briefing.
 
 ## Mechanical regression coverage
 
@@ -26,7 +26,7 @@ In particular, read-only concurrency does not prove worktree isolation. Flow has
 | Independent review | Fresh calls, no sibling verdict handoff, no forced drafting, partial/all failure | Actual criticism quality and source fidelity |
 | Bounded refinement | Authorization flag, compatible backend, feedback, stop on pass/invalid QA, exhaust all allowed attempts while checks keep failing | Useful revisions and sound assessment criteria |
 
-The tests execute the actual recipes and code extracted from the guides through Flow's runtime with deterministic child substitutes. Those substitutes are not real model decisions. Run:
+The tests execute actual recipes and code extracted from guides through Flow's runtime with deterministic child substitutes. Those substitutes are not real model decisions. Run:
 
 ```sh
 npm run check
@@ -34,76 +34,77 @@ npm pack --dry-run --json
 node scripts/e2e/playbook-behavior.mjs --selftest
 ```
 
-The verifier's regressions separately exercise retention after cleanup, exclusion of credential copies, missing facts/calls/receipts, altered manifests, stale scenarios, mismatched review IDs/questions and the reported all-cases false-pass reproduction. They intentionally construct synthetic artifacts to test consistency; they do not attest a provider run.
+Verifier regressions separately exercise retention after cleanup, exclusion of credential copies, missing facts/calls/receipts, altered manifests, stale scenarios, mismatched reviews and false-pass reproductions. Live-response regressions use the reported `structuredContent` field layout, distinguish rejected arguments from admitted runs, check the real harness-selection configuration, and separate eight-page retrieval from a one-space exact-copy mismatch. Synthetic fixtures are labelled as such; they do not attest a provider run.
 
-## Fifteen live scenarios, not fifteen completed results
+## Fifteen scenarios, not fifteen qualified results
 
-The original task fixtures remain in [scenarios.json](../../test/fixtures/playbook-behavior/scenarios.json). A deterministic [large-output fixture](../../test/fixtures/playbook-behavior/large-output.mjs) adds a roughly 30 KB, 160-row source. The runner exports the full scenario list, including an explicit briefing/phase review criterion for coordinated-work cases.
+Task fixtures remain in [scenarios.json](../../test/fixtures/playbook-behavior/scenarios.json). The [large-output fixture](../../test/fixtures/playbook-behavior/large-output.mjs) adds a roughly 30 KB, 160-row source. The runner exports the full scenario list, including briefing/phase review criteria for coordinated work.
 
-`large-output-inspection` requires a helper to return the whole source and the parent to retrieve its canonical result through final-result pages of at most 4096 bytes. Its oracle reconstructs a linked cursor sequence to the last page and compares the complete bytes against the source. Merely repeating the first/middle/last IDs cannot pass. The twelve-short-transcript corpus is no longer presented as evidence of large-output paging.
+`large-output-inspection` asks a helper to return the source and the parent to retrieve its canonical result through final-result pages. The runner now reports three separate observations: **retrieval fidelity** compares a complete linked page sequence with the retained canonical child result; **source fidelity** compares that canonical result with the source bytes; **cursor visibility** checks continuation guidance in tool text rather than assuming structured metadata was visible to the model. No whitespace is normalized. A lost trailing source space fails the exact-copy task but not otherwise complete retrieval. Metadata-only continuation remains unqualified on the reported Pi surface; fixing that integration is outside this correction.
 
-Discovery has separate natural-choice, explicit discovery-child, and already-known-split cases. Several fixtures still contain easy clues and explicit delegation requests. They are execution/reading smoke tests, **not strong evidence of autonomous investigation or better ergonomics**. Do not compensate for these limitations by adding another evaluation framework. Start with the small matched comparison below and inspect the traces.
+Discovery has natural-choice, explicit discovery-child, and already-known-split cases. Several fixtures contain easy clues and explicit delegation requests. They are execution/reading smoke tests, **not strong evidence of autonomous investigation or better ergonomics**. Start with the small matched comparison and inspect traces, rather than adding another evaluation framework.
 
 ## Retained trial evidence
 
-A real trial uses a temporary private agent directory with copies of the root model authentication files. Original user credentials are never edited. Before cleanup, the runner copies **only** the session and child-evidence roots into a private trial directory, preserving child prompts, tool activity, results and summaries. It does not copy the agent credential directory; known credential filenames and symlinks are excluded or rejected. The temporary directory is removed even when retention fails.
-
-Each trial retains:
+A real trial uses a temporary private agent directory with copies of root-model authentication files. Original user credentials and settings are never edited. The runner enables only the selected child harness in that temporary configuration and records the settings; default selection alone is not a restriction. Before cleanup, it copies only session and child-evidence roots, not the credential-bearing agent directory. Known credential filenames and symlinks are excluded or rejected. Temporary credentials are removed even if retention fails.
 
 | Artifact | Purpose |
 | --- | --- |
-| `sessions/`, `evidence/` | Actual parent session and child run records; remain readable after scratch cleanup |
-| `artifacts.json` | Inventory/checksums of those retained files; detects missing or changed records |
+| `sessions/`, `evidence/` | Parent sessions and child run records, readable after cleanup |
+| `artifacts.json` | Retained file inventories/checksums |
 | `pi-events.jsonl`, `pi-stderr.log` | Parent tool events, answers and diagnostics |
-| `process.json` | Process outcome, model/harness and current scenario digest |
-| `fixture-manifest.json`, `fixture-after.json` | Source snapshot and before/after hashes |
-| `result.json` | Convenience cached score, **never authority for verification** |
-| `review.json` | Current case ID, exact review questions, reviewer, ratings and cited evidence |
+| `process.json` | Process outcome, selected model/harness, scenario and trial-settings digests |
+| `trial-settings.json` | Nonsecret fixed-harness availability configuration; absent in older trials |
+| `fixture-manifest.json`, `fixture-after.json` | Source snapshot and fixture-only before/after hashes |
+| `result.json` | Cached score, never authority for verification |
+| `review.json` | Current case ID, exact questions, reviewer, ratings and evidence |
 
-These artifacts may contain sensitive source material or conversations. Keep them private. Credential-file exclusion is not a transcript secret scrubber.
+**Fixture-only checks do not prove no writes elsewhere.** The reported Claude plan-file write under its home directory was outside that check. Do not delete such files as incidental test cleanup or claim a machine-wide write audit. Prefer Codex for the controlled rerun without generalizing its requested sandbox tier into a global no-writes guarantee.
+
+Retained artifacts can contain sensitive material. Keep them private. Credential-file exclusion is not a transcript secret scrubber.
 
 ## Running and reviewing real trials
 
-Use an authenticated Pi parent and working compatible child CLI. All calls are opt-in and may incur provider charges. Use model names actually available in that installation.
+Use an authenticated Pi parent and working compatible child CLI. Calls are opt-in and may incur provider charges. Use model names available in the installation.
 
 ```sh
 node scripts/e2e/playbook-behavior.mjs --list
 node scripts/e2e/playbook-behavior.mjs --real \
   --case discovery-child-decomposition --out /tmp/flow-trials \
   --model openai-codex/gpt-5.6-sol --harness codex
-node scripts/e2e/playbook-behavior.mjs --real \
-  --case large-output-inspection --out /tmp/flow-trials \
-  --model openai-codex/gpt-5.6-sol --harness codex
 ```
 
-A reviewer must inspect the retained source/session/child records, not infer child behavior from the parent's final prose. Give each current question **0 fail / 1 adequate / 2 strong**, cite the concrete retained file/event supporting the rating, and mark `verdict: "pass"` only if every criterion is at least adequate. Do not rename, drop, substitute or reorder the generated questions.
+Inspect retained source, session and child records. Rate each current question **0 fail / 1 adequate / 2 strong**, cite supporting records, and mark `verdict: "pass"` only if every criterion is adequate. Do not rename, drop or reorder questions.
 
 ```sh
-node scripts/e2e/playbook-behavior.mjs --real --case all --out /tmp/flow-trials
 node scripts/e2e/playbook-behavior.mjs --verify /tmp/flow-trials
 ```
 
-`--verify` reloads the **current** scenario, checks its digest and complete fixture manifest, checks retained artifact inventories, re-parses parent events and child receipts, and recomputes the automatic checks. It ignores `result.json` pass flags and compares review IDs/questions to the current definition. Missing or stale artifacts and mismatched reviews fail. Legacy bundles that deleted their evidence cannot be migrated into passing records; rerun them.
+`--verify` reloads the current scenario, checks its digest and complete source manifest, validates retained artifacts, and reparses the actual response envelopes and child receipts. It ignores cached pass flags. Task output checks are separate from fixed-harness comparison eligibility and model-visible pagination qualification. It reports attempted calls, rejected invocations, argument rejections, unique admitted run IDs and unresolved responses. A rejected call followed by corrected arguments is not a second admitted run; a new run after an admitted failure is.
 
-This is ordinary consistency checking, **not tamper-proof provider attestation or proof of reviewer independence**. A complete synthetic forgery is outside its claim. Human review must still establish the records came from the intended genuine trial and that conclusions are sound.
+Existing bundles with intact retained evidence can be reassessed without model calls or modification. Missing or stale artifacts still fail. A legacy default-only configuration cannot silently become a controlled comparison; entirely local results are unaffected by a child-harness constraint they never used. A directory containing only some cases still does not qualify the whole suite.
 
-## Small matched baseline/candidate comparison
+This is consistency checking, **not provider attestation or proof of reviewer independence**. Human review must establish that the records came from the intended trials and support their conclusions.
 
-Before claiming improved agent experience, run the same local task, corpus task, unknown-split investigation and missing-source case against a baseline skill snapshot and the PR snapshot. Keep the same runner, runtime, model/harness, fixtures and approval settings; record both git SHAs and use separate output directories. `--skill-path` selects the snapshot under comparison.
+## Small matched comparison and targeted reruns
+
+For baseline versus candidate, keep the same corrected runner, runtime, parent model, restricted child harness, fixtures and approval settings. Record both skill SHAs, use separate output directories and select the skill with `--skill-path`. Verify actual child receipts as well as the configuration.
 
 ```sh
 for condition in baseline candidate; do
-  # Point /tmp/flow-<condition> at the corresponding recorded repository snapshot.
-  for task in local-baseline batch-corpus discovery-unknown missing-source-no-retry; do
+  for task in batch-corpus discovery-unknown; do
     node scripts/e2e/playbook-behavior.mjs --real --case "$task" \
+      --harness codex \
       --skill-path "/tmp/flow-$condition/skills/pi-flow-orchestration" \
       --out "/tmp/flow-comparison-$condition"
   done
 done
 ```
 
-Compare completed task quality, missing evidence, useful versus redundant delegation and human correction. Help-read count is secondary. Different work splits can be equally good. The missing-source case tests limitation reporting, not a forced backend failure. These smoke fixtures and a small comparison are only initial evidence; don't generalize them into broad performance claims.
+First reassess existing missing-source and large-output bundles. New execution is needed for comparisons confounded by harness choices, or to test cursor usability after that integration is corrected. An exact-copy retry is needed only for an exact-source-reproduction claim. Local outcomes need no rerun merely because unused harnesses were available.
+
+Compare task quality, missing evidence, useful versus redundant delegation and human correction. Help-read count is secondary; one trial with differing child harnesses proves no efficiency gain or loss. The missing-source case tests limitation reporting, not a forced backend failure.
 
 ## Release status
 
-Live qualification and the comparison remain unrun. The provider/routing requirements in [field testing](field-testing.md) still apply independently. Keep PR #103 draft and unmerged until live evidence and version/lockfile/changelog/release-label preparation are resolved. Do not use `release:none` to bypass release policy for shipped skills.
+The reported nine runs provide useful but unqualified evidence. The correction does not resolve model-visible pagination or rerun the controlled comparison. Required provider/routing checks in [field testing](field-testing.md) still apply independently. Keep PR #103 draft until live qualification and release metadata are resolved; no `release:none` bypass for shipped skills.

@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import {
   behavioralCases, completePagedResult, inventory, parsePiTrace, retainTrialArtifacts, verifyReviewed, verifyTrial,
 } from "../scripts/e2e/playbook-behavior.mjs";
+import { fixedHarnessSettings } from "../scripts/e2e/playbook-observations.mjs";
 
 // Synthetic artifacts validate the verifier, never claim real-provider qualification.
 const scenario = { id: "verifier-fixture", pattern: "parallel-work", goal: "Inspect two source files",
@@ -16,7 +17,12 @@ const scenario = { id: "verifier-fixture", pattern: "parallel-work", goal: "Insp
 const digest = (text) => createHash("sha256").update(text).digest("hex");
 const write = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2));
 const events = (calls = true, text = "FACT-A and FACT-B") => [
-  ...(calls ? [{ type: "tool_execution_start", toolCallId: "tool1", toolName: "external_workflow", args: {} }] : []),
+  ...(calls ? [
+    { type: "tool_execution_start", toolCallId: "tool1", toolName: "external_workflow", args: {} },
+    { type: "tool_execution_end", toolCallId: "tool1", result: { structuredContent: {
+      ok: true, data: { run: { runId: "wf_fixture", kind: "workflow" } },
+    } } },
+  ] : []),
   { type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text }] } },
   { type: "agent_settled", aborted: false },
 ].map((event) => JSON.stringify(event)).join("\n");
@@ -31,14 +37,17 @@ function withBundle(check) {
     writeFileSync(join(dir, "pi-events.jsonl"), events());
     for (const id of ["run_a", "run_b"]) {
       mkdirSync(join(dir, "evidence", id));
-      write(join(dir, "evidence", id, "summary.json"), { runId: id, summary: { status: "done" } });
+      write(join(dir, "evidence", id, "summary.json"), { runId: id, summary: { status: "done", backend: "codex" } });
       writeFileSync(join(dir, "evidence", id, "events.ndjson"), [
         { runId: id, type: "run_started", data: { prompt: "Inspect a source" } },
-        { runId: id, type: "run_finished", data: { summary: { status: "done" } } },
+        { runId: id, type: "run_finished", data: { summary: { status: "done", backend: "codex" } } },
       ].map((event) => JSON.stringify(event)).join("\n"));
     }
     const hashes = Object.fromEntries(Object.entries(scenario.files).map(([name, text]) => [name, digest(text)]));
-    write(join(dir, "process.json"), { version: 2, caseId: scenario.id, caseDigest: digest(JSON.stringify(scenario)), exitCode: 0, timedOut: false });
+    const trialSettings = fixedHarnessSettings("codex", 420000);
+    write(join(dir, "trial-settings.json"), trialSettings);
+    write(join(dir, "process.json"), { version: 2, caseId: scenario.id, caseDigest: digest(JSON.stringify(scenario)),
+      harness: "codex", trialSettingsDigest: digest(JSON.stringify(trialSettings)), exitCode: 0, timedOut: false });
     write(join(dir, "fixture-manifest.json"), { caseId: scenario.id, files: scenario.files, sha256: hashes });
     write(join(dir, "fixture-after.json"), hashes);
     write(join(dir, "result.json"), { caseId: scenario.id, oraclePassed: true });
@@ -81,6 +90,11 @@ describe("behavioral verification recomputes current-case evidence", () => {
     assert.equal(verifyTrial(dir, [scenario]).pass, true);
   }));
   for (const [name, mutate, failure] of [
+    ["missing comparison settings", (dir) => rmSync(join(dir, "trial-settings.json")), "fixed-harness-comparison-unqualified"],
+    ["unexpected child harness", (dir) => {
+      const r = load(dir, "evidence/run_a/summary.json"); r.summary.backend = "claude";
+      write(join(dir, "evidence/run_a/summary.json"), r); seal(dir);
+    }, "fixed-harness-comparison-unqualified"],
     ["missing source facts", (dir) => writeFileSync(join(dir, "pi-events.jsonl"), events(true, "generic answer")), "evidence-coverage"],
     ["missing external calls", (dir) => writeFileSync(join(dir, "pi-events.jsonl"), events(false)), "external-used"],
     ["missing child receipts", (dir) => { rmSync(join(dir, "evidence/run_b"), { recursive: true }); seal(dir); }, "successful-child-evidence"],
@@ -129,7 +143,7 @@ describe("referenced-result retrieval evidence", () => {
       const id = "inspect-" + n, args = { action: "inspect", view: "final", runIds: ["run_big"], limitBytes: size };
       if (n) args.cursor = "page-" + n;
       data.push({ type: "tool_execution_start", toolCallId: id, toolName: "external_runs", args });
-      data.push({ type: "tool_execution_end", toolCallId: id, result: { details: { ok: true, data: {
+      data.push({ type: "tool_execution_end", toolCallId: id, result: { structuredContent: { ok: true, data: {
         page: { text: text.slice(offset, offset + size), nextCursor: offset + size < text.length ? "page-" + (n + 1) : null },
       } } } });
     }

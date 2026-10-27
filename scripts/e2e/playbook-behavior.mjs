@@ -11,6 +11,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { largeOutputCase } from "../../test/fixtures/playbook-behavior/large-output.mjs";
+import { resultEnvelope, invocationCounts, fixedHarnessSettings, harnessControl, paginationAssessment } from "./playbook-observations.mjs";
+export { completePagedResult } from "./playbook-observations.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const manifest = JSON.parse(readFileSync(join(root, "test/fixtures/playbook-behavior/scenarios.json"), "utf8"));
@@ -54,15 +56,6 @@ function parseArgs(argv) {
   return options;
 }
 
-function resultEnvelope(result) {
-  if (result?.details?.ok !== undefined) return result.details;
-  for (const part of result?.content ?? []) {
-    if (part?.type !== "text") continue;
-    try { const value = JSON.parse(part.text); if (value?.ok !== undefined) return value; } catch { /* not an envelope */ }
-  }
-  return null;
-}
-
 export function parsePiTrace(raw) {
   const events = [];
   for (const line of raw.split("\n")) {
@@ -80,7 +73,14 @@ export function parsePiTrace(raw) {
       });
     }
     if (event.type === "tool_execution_end" && calls.has(String(event.toolCallId))) {
-      calls.get(String(event.toolCallId)).result = resultEnvelope(event.result);
+      const call = calls.get(String(event.toolCallId));
+      call.result = resultEnvelope(event.result);
+      call.visibleText = (event.result?.content ?? []).filter((part) => part?.type === "text" && typeof part.text === "string")
+        .map((part) => part.text).join("\n");
+      // Native schema errors can precede Flow's envelope. Other unclassified errors stay unknown.
+      call.validationRejected = !call.result && (event.result?.details?.code === "request_invalid" ||
+        ((event.isError === true || event.result?.isError === true) &&
+          /^(?:Error: )?(?:Validation failed for tool|Invalid arguments for tool)\b/.test(call.visibleText)));
     }
     if (event.type === "message_end" && event.message?.role === "assistant") {
       const text = (Array.isArray(event.message.content) ? event.message.content : [])
@@ -128,7 +128,10 @@ function evidenceSummaries(dir) {
         !events.some((event) => event.runId === record.runId && event.type === "run_finished")) {
       throw new Error("Child summary lacks matching run events: " + file);
     }
-    return { file, status: summary.status };
+    const launch = events.find((event) => event.type === "launch_resolved")?.data?.configuration;
+    return { file, runId: record.runId, status: summary.status,
+      harness: launch?.harness ?? record.metadata?.harness ?? summary.harness ?? summary.backend ?? null,
+      canonicalText: typeof summary.result === "string" ? summary.result : null };
   });
 }
 
@@ -154,37 +157,10 @@ export function retainTrialArtifacts(scratch, runDir) {
   return hashes;
 }
 
-// Require a linked, complete sequence of final-result pages for the large-output trial.
-export function completePagedResult(trace, expectedText) {
-  const groups = new Map();
-  for (const call of trace.toolCalls) {
-    if (call.name !== "external_runs" || call.args?.action !== "inspect" || call.args?.view !== "final" ||
-        call.result?.ok !== true || call.args?.runIds?.length !== 1) continue;
-    const id = call.args.runIds[0];
-    const page = call.result.data?.page;
-    if (!page || typeof page.text !== "string") continue;
-    const pages = groups.get(id) ?? [];
-    pages.push({ cursor: call.args.cursor ?? null, next: page.nextCursor ?? null, text: page.text });
-    groups.set(id, pages);
-  }
-  for (const pages of groups.values()) {
-    let cursor = null, combined = "", count = 0;
-    const visited = new Set();
-    for (const page of pages) {
-      if (page.cursor !== cursor || visited.has(cursor)) continue;
-      visited.add(cursor); combined += page.text; count++; cursor = page.next;
-      if (cursor === null) {
-        if (count > 1 && Buffer.byteLength(combined) > 16384 && combined === expectedText) return true;
-        break;
-      }
-    }
-  }
-  return false;
-}
-
 export function evaluateTrial(testCase, evidence) {
   const observed = evidence.trace;
-  const roots = observed.toolCalls.filter((call) => ["external_delegate", "external_workflow"].includes(call.name));
+  const invocations = invocationCounts(observed);
+  const roots = invocations.admitted.map((entry) => entry.call);
   const children = evidence.summaries.filter((summary) => !summary.file.split(/[\\/]/).some((part) => part.startsWith("wf_")));
   const successfulChildren = children.filter((summary) => summary.status === "done");
   const facts = testCase.expect.facts.map((token) => ({ token, present: observed.final.includes(token) }));
@@ -196,21 +172,36 @@ export function evaluateTrial(testCase, evidence) {
     { id: "evidence-coverage", pass: facts.every((fact) => fact.present), detail: facts },
     { id: "fixture-unchanged", pass: isDeepStrictEqual(evidence.before, evidence.after) },
   ];
+  checks.push({ id: "external-admission-known", pass: invocations.unresolved === 0 });
   if (exp.minExternalRoots !== undefined) checks.push({ id: "external-used", pass: roots.length >= exp.minExternalRoots });
   if (exp.maxExternalRoots !== undefined) checks.push({ id: "no-extra-external-runs", pass: roots.length <= exp.maxExternalRoots });
   if (exp.minChildren !== undefined) checks.push({ id: "successful-child-evidence", pass: successfulChildren.length >= exp.minChildren });
-  if (exp.requirePagedSource) checks.push({ id: "complete-referenced-output", pass: completePagedResult(observed, testCase.files[exp.requirePagedSource]) });
+  const pagination = exp.requirePagedSource
+    ? paginationAssessment(observed, evidence.summaries, testCase.files[exp.requirePagedSource]) : null;
+  if (pagination) {
+    checks.push({ id: "complete-referenced-output", pass: pagination.retrievalFidelity === "matched" });
+    checks.push({ id: "exact-source-copy", pass: pagination.sourceFidelity === "matched" });
+  }
   if (exp.requireBackground) {
     checks.push({ id: "background-invocation", pass: roots.some((call) => call.args?.background === true) });
     checks.push({ id: "no-immediate-wait", pass: !observed.toolCalls.some((call) => call.name === "external_runs" && call.args?.action === "wait") });
     checks.push({ id: "handle-reported", pass: /\b(?:run|wf)_[A-Za-z0-9_-]+\b/.test(observed.final) });
   }
   const failed = checks.filter((check) => !check.pass).map((check) => check.id);
+  const comparison = harnessControl(evidence);
+  const qualificationBlockers = [
+    ...(comparison.qualified ? [] : ["fixed-harness-comparison-unqualified"]),
+    ...(pagination && pagination.cursorVisibility !== "visible_in_tool_text" ? ["model-visible-pagination-unqualified"] : []),
+  ];
   return {
     caseId: testCase.id, pattern: testCase.pattern, automaticChecks: checks,
     oraclePassed: failed.length === 0, failedChecks: failed,
     childReceipts: children.length, successfulChildReceipts: successfulChildren.length,
-    rootToolCalls: roots.length, patternGuidesRead: observed.patternGuidesRead,
+    rootToolCalls: invocations.attempts, admittedRuns: roots.length,
+    admittedRunIds: invocations.admitted.map((entry) => entry.runId),
+    rejectedInvocations: invocations.rejected, argumentRejections: invocations.argumentRejections,
+    unresolvedInvocations: invocations.unresolved, patternGuidesRead: observed.patternGuidesRead,
+    comparison, pagination, qualificationBlockers,
     behavioralStatus: failed.length ? "failed-oracle" : "awaiting-independent-review", reviewCriteria: testCase.review,
   };
 }
@@ -241,16 +232,22 @@ export function verifyTrial(runDir, cases = behavioralCases) {
       throw new Error("No retained parent session");
     }
     const trace = parsePiTrace(readFileSync(join(runDir, "pi-events.jsonl"), "utf8"));
+    const settingsPath = join(runDir, "trial-settings.json");
+    const trialSettings = existsSync(settingsPath) ? readJSON(settingsPath) : null;
+    if (trialSettings && processRecord.trialSettingsDigest !== sha(JSON.stringify(trialSettings))) {
+      throw new Error("Trial settings snapshot does not match process record");
+    }
     const score = evaluateTrial(testCase, {
-      ...processRecord, trace, summaries: evidenceSummaries(join(runDir, "evidence")), before: expected, after,
+      ...processRecord, trialSettings, trace, summaries: evidenceSummaries(join(runDir, "evidence")), before: expected, after,
     });
     const review = readJSON(join(runDir, "review.json"));
     const reviewOK = review.caseId === caseId && review.verdict === "pass" && nonempty(review.reviewer) &&
       Array.isArray(review.criteria) && review.criteria.length === testCase.review.length &&
       review.criteria.every((criterion, index) => criterion?.question === testCase.review[index] &&
         Number.isInteger(criterion.rating) && criterion.rating >= 1 && criterion.rating <= 2 && nonempty(criterion.evidence));
-    return { caseId, pass: score.oraclePassed && reviewOK, oraclePassed: score.oraclePassed,
-      failedChecks: [...score.failedChecks, ...(reviewOK ? [] : ["current-case-review"])], verdict: review.verdict };
+    return { ...score, caseId, pass: score.oraclePassed && reviewOK && score.qualificationBlockers.length === 0,
+      failedChecks: [...score.failedChecks, ...score.qualificationBlockers, ...(reviewOK ? [] : ["current-case-review"])],
+      verdict: review.verdict };
   } catch (error) {
     return { caseId, pass: false, oraclePassed: false, failedChecks: [String(error.message || error)] };
   }
@@ -296,7 +293,7 @@ async function spawnCaptured(command, argv, options) {
 async function runReal(testCase, options, output) {
   if (!commandPresent("pi")) throw new Error("Missing real pi CLI; --selftest does not qualify real behavior");
   if (!commandPresent(options.harness)) throw new Error("Missing external CLI " + options.harness);
-  if (!["codex", "claude", "grok", "muse"].includes(options.harness)) throw new Error("Trial requires an enforceable readonly harness");
+  if (!["codex", "claude", "grok", "muse"].includes(options.harness)) throw new Error("Trial requires a harness supporting the readonly tier");
   const agentRoot = resolve(options.agentDir ?? process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"));
   const scratch = mkdtempSync(join(tmpdir(), "flow-playbook-live-")); chmodSync(scratch, 0o700);
   const workspace = join(scratch, "fixture"), agent = join(scratch, "agent"), sessions = join(scratch, "sessions"), evidence = join(scratch, "evidence");
@@ -314,7 +311,9 @@ async function runReal(testCase, options, output) {
     if (!existsSync(join(skill, "SKILL.md"))) throw new Error("Skill not found: " + skill);
     mkdirSync(join(agent, "skills"), { recursive: true }); cpSync(skill, join(agent, "skills/pi-flow-orchestration"), { recursive: true });
     const settings = join(agent, "pi-flow-external/settings.json"); mkdirSync(dirname(settings), { recursive: true });
-    writeJSON(settings, { version: 5, defaultHarness: options.harness, defaultPermission: "readonly", maxConcurrentSubagents: 4, subagentTimeoutMs: options.timeoutMs });
+    const trialSettings = fixedHarnessSettings(options.harness, options.timeoutMs);
+    writeJSON(settings, trialSettings);
+    writeJSON(join(runDir, "trial-settings.json"), trialSettings);
     const prompt = [
       "You are working in this isolated test project: " + workspace,
       "Complete the user's task with the tools and resources available to you.",
@@ -332,13 +331,14 @@ async function runReal(testCase, options, output) {
     });
     const processRecord = { version: 2, caseId: testCase.id, caseDigest: sha(JSON.stringify(testCase)),
       model: options.model, thinking: options.thinking, harness: options.harness, skillPath: skill,
+      trialSettingsDigest: sha(JSON.stringify(trialSettings)),
       exitCode: proc.exitCode, timedOut: proc.timedOut, spawnError: proc.spawnError ?? null, signal: proc.signal ?? null };
     writeJSON(join(runDir, "process.json"), processRecord);
     writeFileSync(join(runDir, "pi-events.jsonl"), proc.stdout, { mode: 0o600 });
     writeFileSync(join(runDir, "pi-stderr.log"), proc.stderr, { mode: 0o600 });
     writeJSON(join(runDir, "fixture-manifest.json"), { caseId: testCase.id, files: testCase.files, sha256: before });
     const after = inventory(workspace); writeJSON(join(runDir, "fixture-after.json"), after);
-    const score = evaluateTrial(testCase, { ...processRecord, before, after, trace: parsePiTrace(proc.stdout), summaries: evidenceSummaries(evidence) });
+    const score = evaluateTrial(testCase, { ...processRecord, trialSettings, before, after, trace: parsePiTrace(proc.stdout), summaries: evidenceSummaries(evidence) });
     writeJSON(join(runDir, "result.json"), { ...score, testedAt: new Date().toISOString() });
     writeJSON(join(runDir, "review.json"), { caseId: testCase.id, reviewer: null,
       criteria: testCase.review.map((question) => ({ question, rating: null, evidence: null })), verdict: "unreviewed", notes: "" });
@@ -355,6 +355,7 @@ function selftest() {
   const item = behavioralCases.find((c) => c.id === "parallel-known");
   const raw = [
     { type: "tool_execution_start", toolCallId: "first", toolName: "external_workflow", args: {} },
+    { type: "tool_execution_end", toolCallId: "first", result: { structuredContent: { ok: true, data: { run: { runId: "wf_selftest" } } } } },
     { type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Evidence CACHE-LOCK-27 and RETRY-WINDOW-81" }] } },
     { type: "agent_settled", aborted: false },
   ].map((event) => JSON.stringify(event)).join("\n");
@@ -380,7 +381,7 @@ async function main() {
     const expected = new Set(behavioralCases.map((item) => item.id)), observed = new Set(rows.map((row) => row.caseId));
     if (rows.length < behavioralCases.length || observed.size !== expected.size ||
         [...expected].some((id) => !observed.has(id)) || rows.some((row) => !row.pass)) throw new Error("Behavioral suite unqualified: every current case needs retained evidence and matching review");
-    console.log("PASS: current-case automatic checks recomputed; matching reviewer records present (not provider attestation)."); return;
+    console.log("PASS: task checks, fixed-harness evidence and matching reviews qualified (not provider attestation)."); return;
   }
   if (!options.real || !options.out || !options.case) throw new Error("Use --real --out DIR --case ID (or --case all). Run --help.");
   const selected = options.case === "all" ? behavioralCases : behavioralCases.filter((item) => item.id === options.case);
@@ -389,7 +390,8 @@ async function main() {
   let failed = false;
   for (const item of selected) {
     const result = await runReal(item, options, output);
-    console.log(JSON.stringify({ caseId: item.id, oraclePassed: result.score.oraclePassed, behavioralStatus: result.score.behavioralStatus, evidence: result.runDir }));
+    console.log(JSON.stringify({ caseId: item.id, oraclePassed: result.score.oraclePassed,
+      qualificationBlockers: result.score.qualificationBlockers, behavioralStatus: result.score.behavioralStatus, evidence: result.runDir }));
     if (!result.score.oraclePassed) failed = true;
   }
   if (failed) process.exitCode = 1;
