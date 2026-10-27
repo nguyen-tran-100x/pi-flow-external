@@ -59,3 +59,7 @@ The bulk recipe uses caller-provided source-size estimates, not a tokenizer. It 
 Verification should include the executable Flow runtime with deterministic children: uneven 240-item input, per-item IDs, partial/all failure, malformed records, reducer size blockage, reducer failure, pool bounds, and independent review without a drafting stage. Guide examples should execute through the same runtime; all linked guides/scripts must appear in the npm tarball. These checks do not establish extraction accuracy, native-model schema fidelity or live workflow selection.
 
 Before release, follow the existing field-testing policy. A small fresh-session trial should include an ordinary single task, mixed known categories, an unknown split and a real uneven corpus. Compare against the pre-catalog revision with the same tools/model, record the guidance actually read, and check task completion, missing evidence and user corrections first. Help-call count is secondary. No real-provider or matched parent-agent improvement is claimed without those traces.
+
+## Test coverage follow-up (PR #103)
+
+Every advertised pattern and shared agent-journey recommendation has a traceable mechanical and real-agent behavioral acceptance path in [Playbook Verification](playbook-test-plan.md) and [the coverage matrix](playbook-coverage.json). Deeper offline discovery tests prove execution fidelity; genuine task-decomposition quality requires real parent-agent trials. A trial runner is not a verified behavioral result.
