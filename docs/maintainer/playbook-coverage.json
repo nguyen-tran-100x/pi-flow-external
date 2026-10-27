@@ -1,0 +1,356 @@
+{
+  "version": 1,
+  "requirements": [
+    {
+      "id": "pattern-parallel",
+      "kind": "pattern",
+      "mechanical": [
+        {
+          "file": "test/orchestration-playbook.test.ts",
+          "test": "covers independent scopes and preserves a failed branch"
+        }
+      ],
+      "behavioral": [
+        "parallel-known"
+      ]
+    },
+    {
+      "id": "pattern-batch",
+      "kind": "pattern",
+      "mechanical": [
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "maps 240 uneven items with bounded concurrency"
+        },
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "keeps unreadable items and failed batches"
+        }
+      ],
+      "behavioral": [
+        "batch-corpus"
+      ]
+    },
+    {
+      "id": "pattern-pipeline",
+      "kind": "pattern",
+      "mechanical": [
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "passes actual extraction evidence"
+        },
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "does not draft after an extraction failure"
+        }
+      ],
+      "behavioral": [
+        "pipeline-evidence"
+      ]
+    },
+    {
+      "id": "pattern-routing",
+      "kind": "pattern",
+      "mechanical": [
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "routes one known category and rejects unknown categories"
+        }
+      ],
+      "behavioral": [
+        "routing-known"
+      ]
+    },
+    {
+      "id": "pattern-discover",
+      "kind": "pattern",
+      "mechanical": [
+        {
+          "file": "test/orchestration-discovery.test.ts",
+          "test": "asks for bounded structured discovery"
+        },
+        {
+          "file": "test/orchestration-discovery.test.ts",
+          "test": "preserves successful investigations"
+        }
+      ],
+      "behavioral": [
+        "discovery-unknown",
+        "discovery-known-skip"
+      ]
+    },
+    {
+      "id": "pattern-independent-review",
+      "kind": "pattern",
+      "mechanical": [
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "reviews an existing target without drafting"
+        },
+        {
+          "file": "test/context-handoff.test.ts",
+          "test": "keeps workflow child snapshots frozen"
+        }
+      ],
+      "behavioral": [
+        "independent-review"
+      ]
+    },
+    {
+      "id": "pattern-bounded-refinement",
+      "kind": "pattern",
+      "mechanical": [
+        {
+          "file": "test/orchestration-playbook.test.ts",
+          "test": "allows bounded repair with harness"
+        },
+        {
+          "file": "test/orchestration-playbook.test.ts",
+          "test": "rejects an edit loop without prior authorization"
+        }
+      ],
+      "behavioral": [
+        "bounded-refinement"
+      ]
+    },
+    {
+      "id": "selection-no-ceremony",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/agent-contract.test.ts",
+          "test": "registers the external_delegate tool contract"
+        }
+      ],
+      "behavioral": [
+        "local-baseline",
+        "parallel-known",
+        "discovery-known-skip"
+      ]
+    },
+    {
+      "id": "progressive-discovery",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "links the seven focused guides directly"
+        }
+      ],
+      "behavioral": [
+        "parallel-known",
+        "batch-corpus",
+        "discovery-unknown"
+      ]
+    },
+    {
+      "id": "brief-and-child-autonomy",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/orchestration-discovery.test.ts",
+          "test": "passes each exact discovered question"
+        }
+      ],
+      "behavioral": [
+        "discovery-unknown",
+        "parallel-known"
+      ]
+    },
+    {
+      "id": "absolute-sources",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "maps 240 uneven items"
+        }
+      ],
+      "behavioral": [
+        "discovery-unknown",
+        "batch-corpus"
+      ]
+    },
+    {
+      "id": "fresh-context-and-explicit-handoff",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/context-handoff.test.ts",
+          "test": "transfers selected evidence from child A to child B"
+        },
+        {
+          "file": "test/context-handoff.test.ts",
+          "test": "keeps workflow child snapshots frozen"
+        }
+      ],
+      "behavioral": [
+        "pipeline-evidence",
+        "independent-review"
+      ]
+    },
+    {
+      "id": "approved-permissions",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/orchestration-playbook.test.ts",
+          "test": "rejects an edit loop without prior authorization"
+        }
+      ],
+      "behavioral": [
+        "bounded-refinement",
+        "parallel-known"
+      ]
+    },
+    {
+      "id": "phase-roadmap-and-briefing",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/workflow.test.ts",
+          "test": "accepts optional string phase details"
+        }
+      ],
+      "behavioral": [
+        "pipeline-evidence",
+        "discovery-unknown"
+      ]
+    },
+    {
+      "id": "parallel-edit-isolation",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "maps 240 uneven items with bounded concurrency"
+        },
+        {
+          "file": "test/orchestration-discovery.test.ts",
+          "test": "does not treat a proposed scope as authority"
+        }
+      ],
+      "behavioral": [
+        "parallel-known",
+        "discovery-unknown"
+      ]
+    },
+    {
+      "id": "retry-or-switch-authorization",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/orchestration-playbook.test.ts",
+          "test": "rejects an edit loop without prior authorization"
+        },
+        {
+          "file": "test/orchestration-discovery.test.ts",
+          "test": "preserves successful investigations and every failed scope without retries"
+        }
+      ],
+      "behavioral": [
+        "missing-source-no-retry"
+      ]
+    },
+    {
+      "id": "foreground-background-choice",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/agent-contract.test.ts",
+          "test": "launches external_delegate and workflow work in the background"
+        }
+      ],
+      "behavioral": [
+        "parallel-known",
+        "background-progress"
+      ]
+    },
+    {
+      "id": "evidence-coverage-and-acceptance",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "keeps unreadable items and failed batches"
+        },
+        {
+          "file": "test/external-runs.test.ts",
+          "test": "preserves falsy canonical values"
+        }
+      ],
+      "behavioral": [
+        "batch-corpus",
+        "missing-source-no-retry"
+      ]
+    },
+    {
+      "id": "large-output-and-inspection",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/external-runs.test.ts",
+          "test": "paginates a small batch limitBytes"
+        },
+        {
+          "file": "test/external-runs.test.ts",
+          "test": "projects a workflow's verified final result"
+        }
+      ],
+      "behavioral": [
+        "batch-corpus",
+        "background-progress"
+      ]
+    },
+    {
+      "id": "recipe-file-not-registered-name",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "links the seven focused guides directly"
+        },
+        {
+          "file": "test/orchestration-playbook.test.ts",
+          "test": "links to actual bundled recipe files"
+        }
+      ],
+      "behavioral": [
+        "batch-corpus",
+        "independent-review"
+      ]
+    },
+    {
+      "id": "bounded-work-and-failures",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/orchestration-discovery.test.ts",
+          "test": "limits concurrent workers using Flow's shared limiter"
+        },
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "preserves failed reducer inputs"
+        }
+      ],
+      "behavioral": [
+        "discovery-unknown",
+        "batch-corpus"
+      ]
+    },
+    {
+      "id": "qualitative-parent-judgment",
+      "kind": "journey",
+      "mechanical": [
+        {
+          "file": "test/orchestration-patterns.test.ts",
+          "test": "reviews an existing target without drafting"
+        }
+      ],
+      "behavioral": [
+        "independent-review",
+        "discovery-unknown"
+      ]
+    }
+  ]
+}
