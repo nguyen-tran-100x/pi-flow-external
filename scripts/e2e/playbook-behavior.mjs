@@ -10,10 +10,15 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
+import { largeOutputCase } from "../../test/fixtures/playbook-behavior/large-output.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const manifest = JSON.parse(readFileSync(join(root, "test/fixtures/playbook-behavior/scenarios.json"), "utf8"));
-export const behavioralCases = manifest.cases;
+export const behavioralCases = [...manifest.cases, largeOutputCase].map((item) =>
+  ["parallel-known", "pipeline-evidence", "discovery-unknown", "discovery-child-decomposition"].includes(item.id)
+    ? { ...item, review: [...item.review,
+      "Before coordinated work, did the parent explain assignments, order, allowed changes and deliverable, and use meaningful phase progress without inventing an approval gate?"] }
+    : item);
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const readJSON = (path) => JSON.parse(readFileSync(path, "utf8"));
 const writeJSON = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
