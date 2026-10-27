@@ -11,6 +11,8 @@
 
 [playbook-coverage.test.ts](../../test/playbook-coverage.test.ts) fails if a pattern or requirement has no mapping, a mapped test is missing, a behavioral case is orphaned, or an expected fact is leaked into the user prompt. It exercises the live runner's selftest, which refuses to mark simulated text as completed real-agent behavior.
 
+**Coverage maintenance:** This matrix cannot infer brand-new recommendations from prose. A contributor reviewing any new or changed normative guidance must register its ID, executable test reference, and real-agent case before advertising it. CI rejects incomplete entries; human review still determines whether the mapping is meaningful. Do not test prompt word choices just to satisfy a matrix row.
+
 ## Coverage by advertised pattern
 
 | Pattern | Mechanical lane | Behavioral lane |
