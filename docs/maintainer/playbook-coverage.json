@@ -154,7 +154,8 @@
       ],
       "behavioral": [
         "discovery-unknown",
-        "parallel-known"
+        "parallel-known",
+        "shared-edit-plan"
       ]
     },
     {
@@ -200,7 +201,9 @@
       ],
       "behavioral": [
         "bounded-refinement",
-        "parallel-known"
+        "parallel-known",
+        "permission-trap",
+        "shared-edit-plan"
       ]
     },
     {
@@ -232,7 +235,8 @@
       ],
       "behavioral": [
         "parallel-known",
-        "discovery-unknown"
+        "discovery-unknown",
+        "shared-edit-plan"
       ]
     },
     {
@@ -249,7 +253,8 @@
         }
       ],
       "behavioral": [
-        "missing-source-no-retry"
+        "missing-source-no-retry",
+        "permission-trap"
       ]
     },
     {
