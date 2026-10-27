@@ -19,7 +19,7 @@
 | Batch map–reduce | Uneven 240-item corpus, concurrency, ID completeness, failed and oversize reduction | `batch-corpus`: twelve real source files, per-item results, grounded theme counts |
 | Pipeline | Actual output handed to next child; first-stage failure stops dependency | `pipeline-evidence`: extract canary data then recommend with stated limits |
 | Routing | Known-category dispatch and rejection of unknown categories | `routing-known`: handle an incident, not a feature-design exercise |
-| **Discover and delegate** | Bounded structured output, malformed/duplicate scopes, goal/target fidelity, 8-worker concurrency, failure retention, no scope-authority escalation | **`discovery-unknown`:** identify both genuine defects and delegate useful, independent investigations; **`discovery-known-skip`:** do not add a discovery agent when the split is already known |
+| **Discover and delegate** | Bounded structured output, malformed/duplicate scopes, goal/target fidelity, 8-worker concurrency, failure retention, no scope-authority escalation | **`discovery-unknown`:** parent or helper finds source-grounded scopes; **`discovery-child-decomposition`:** a discovery child proposes substantive scopes that workers then investigate; **`discovery-known-skip`:** avoid a discovery child when the split is already known |
 | Independent review | Fresh sibling-independent assessments, no mandatory draft or vote, partial failure | `independent-review`: find a genuine proposal/requirements contradiction |
 | Bounded refinement | Authorization, attempt cap, tested QA checks and backend constraints | `bounded-refinement`: revise against a rubric with finite feedback, no unapproved edits |
 
